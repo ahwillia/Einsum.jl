@@ -43,7 +43,7 @@ function _einsum(eq::Expr)
 	ex = nest_loops(ex,terms_idx,terms_dim)
 
 	ex = quote
-		$(esc(:(s = 0)))
+		$(esc(:(local s = 0)))
 		$ex 
 		$(esc(lhs_eq_s))
 	end
