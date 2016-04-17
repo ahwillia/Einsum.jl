@@ -8,34 +8,58 @@ end
 
 function _einsum(eq::Expr)
 	
+	# Get left hand side (lhs) and right hand side (rhs) of eq
 	@assert eq.head == :(=)
+	lhs = eq.args[1]
+	rhs = eq.args[2]
 
-	lhs = eq.args[1] # left hand side of equation
-	rhs = eq.args[2] # right hand side of equation
-
+	# Left hand side of equation must be a reference, e.g. A[i,j,k]
 	@assert length(lhs.args) > 1
 	@assert lhs.head == :ref
 
+	# recurse expression to find indices
 	dest_idx,dest_dim = Symbol[],Expr[]
 	get_indices!(lhs,dest_idx,dest_dim)
 
 	terms_idx,terms_dim = Symbol[],Expr[]
 	get_indices!(rhs,terms_idx,terms_dim)
 
-	# remove duplicate indices found elsewhere in terms or dest 
-	i = length(terms_idx)
-	while i > 0
-		if terms_idx[i] in terms_idx[1:(i-1)] || terms_idx[i] in dest_idx
+	# remove duplicate indices found elsewhere in terms or dest
+	ex_check_dims = :()
+	for i in reverse(1:length(terms_idx))
+		duplicated = false
+		di = terms_dim[i]
+		for j = 1:(i-1)
+			if terms_idx[j] == terms_idx[i]
+				dj = terms_dim[j]
+				ex_check_dims = quote
+					@assert $(esc(dj)) == $(esc(di))
+					$ex_check_dims
+				end
+				duplicated = true
+			end
+		end
+		for j = 1:length(dest_idx)
+			if dest_idx[j] == terms_idx[i]
+				dj = dest_dim[j]
+				ex_check_dims = quote
+					@assert $(esc(dj)) == $(esc(di))
+					$ex_check_dims
+				end
+				duplicated = true
+			end
+		end
+		if duplicated
 			deleteat!(terms_idx,i)
 			deleteat!(terms_dim,i)
 		end
 		i -= 1
 	end
-	
-	# stick ex into middle of bunch of nested loops
 
-	lhs_eq_s = :($lhs = s) 
+	# Copy equation, ex is the Expr we'll build up and return.
 	ex = deepcopy(eq)
+
+	# Innermost expression has form s += rhs
 	ex.args[1] = :s
 	ex.head = :(+=)
 	ex = esc(ex)
@@ -45,12 +69,15 @@ function _einsum(eq::Expr)
 	ex = quote
 		$(esc(:(local s = 0)))
 		$ex 
-		$(esc(lhs_eq_s))
+		$(esc(:($lhs = s)))
 	end
 
 	ex = nest_loops(ex,dest_idx,dest_dim)
 
-	return ex
+	return quote
+	$ex_check_dims
+	$ex
+	end
 end
 
 function nest_loops(ex::Expr,idx::Vector{Symbol},dim::Vector{Expr})
