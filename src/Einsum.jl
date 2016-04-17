@@ -56,7 +56,7 @@ end
 function nest_loops(ex::Expr,idx::Vector{Symbol},dim::Vector{Expr})
 	for (i,d) in zip(idx,dim)
 		ex = quote
-		    for $(esc(i)) = $(esc(d))
+		    for $(esc(i)) = 1:$(esc(d))
 		        $(ex)
 		    end
 		end
@@ -69,7 +69,7 @@ function get_indices!(ex::Expr,idx_store::Vector{Symbol},dim_store::Vector{Expr}
 	if ex.head == :ref
 		for (i,arg) in enumerate(ex.args[2:end])
 			push!(idx_store,arg)
-			push!(dim_store,:(1:size($(ex.args[1]),$i)))
+			push!(dim_store,:(size($(ex.args[1]),$i)))
 		end
 	else
 		@assert ex.head == :call
