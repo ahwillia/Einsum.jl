@@ -17,6 +17,9 @@ function _einsum(eq::Expr)
 	@assert length(lhs.args) > 1
 	@assert lhs.head == :ref
 
+	# Ensure type stability
+	ex_get_type = :($(esc(:(local T = eltype($(lhs.args[1]))))))
+
 	# recurse expression to find indices
 	dest_idx,dest_dim = Symbol[],Expr[]
 	get_indices!(lhs,dest_idx,dest_dim)
@@ -67,7 +70,7 @@ function _einsum(eq::Expr)
 	ex = nest_loops(ex,terms_idx,terms_dim)
 
 	ex = quote
-		$(esc(:(local s = 0)))
+		$(esc(:(local s = zero(T))))
 		$ex 
 		$(esc(:($lhs = s)))
 	end
@@ -76,6 +79,7 @@ function _einsum(eq::Expr)
 
 	return quote
 	$ex_check_dims
+	$ex_get_type
 	$ex
 	end
 end
