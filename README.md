@@ -34,6 +34,20 @@ To see exactly what is generated, use [`macroexpand`](http://docs.julialang.org/
 macroexpand(:(@einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]))
 ```
 
+### Benchmarks:
+
+See the `benchmarks/` folder for code:
+
+```julia
+julia> @time benchmark_einsum(30)
+  2.237183 seconds (12 allocations: 185.429 MB, 0.23% gc time)
+```
+
+```python
+In [2]: %timeit benchmark_numpy(30)
+1 loop, best of 3: 9.27 s per loop
+```
+
 ### Related Packages:
 
 * https://github.com/Jutho/TensorOperations.jl
