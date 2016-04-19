@@ -48,12 +48,16 @@ macroexpand(:(@einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]))
 
 ### Benchmarks:
 
-See the `benchmarks/` folder for code:
+See the `benchmarks/` folder for code.
+
+Julia:
 
 ```julia
 julia> @time benchmark_einsum(30)
   2.237183 seconds (12 allocations: 185.429 MB, 0.23% gc time)
 ```
+
+Python:
 
 ```python
 In [2]: %timeit benchmark_numpy(30)
