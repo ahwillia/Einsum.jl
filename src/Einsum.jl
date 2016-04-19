@@ -9,16 +9,12 @@ end
 function _einsum(eq::Expr)
 	
 	# Get left hand side (lhs) and right hand side (rhs) of eq
-	@assert eq.head == :(=)
 	lhs = eq.args[1]
 	rhs = eq.args[2]
 
 	# Left hand side of equation must be a reference, e.g. A[i,j,k]
 	@assert length(lhs.args) > 1
 	@assert lhs.head == :ref
-
-	# Ensure type stability
-	ex_get_type = :($(esc(:(local T = eltype($(lhs.args[1]))))))
 
 	# recurse expression to find indices
 	dest_idx,dest_dim = Symbol[],Expr[]
@@ -45,10 +41,15 @@ function _einsum(eq::Expr)
 		for j = 1:length(dest_idx)
 			if dest_idx[j] == terms_idx[i]
 				dj = dest_dim[j]
-				ex_check_dims = quote
-					@assert $(esc(dj)) == $(esc(di))
-					$ex_check_dims
-				end
+				if eq.head == :(=)
+					ex_check_dims = quote
+						@assert $(esc(dj)) == $(esc(di))
+						$ex_check_dims
+					end
+				else
+					# store size of output array for dim j 
+					dest_dim[j] = di 
+				end 
 				duplicated = true
 			end
 		end
@@ -58,6 +59,15 @@ function _einsum(eq::Expr)
 		end
 		i -= 1
 	end
+
+	# Create output array if specified by user 
+	if eq.head == :(:=)
+		ex_get_type = :($(esc(:(local T = eltype($(terms_dim[1].args[2]))))))
+		ex_create_arrays = :($(esc(:($(lhs.args[1]) = Array(T,$(dest_dim...))))))
+	else
+		ex_get_type = :($(esc(:(local T = eltype($(lhs.args[1]))))))
+		ex_create_arrays = :(nothing)
+	end	
 
 	# Copy equation, ex is the Expr we'll build up and return.
 	ex = deepcopy(eq)
@@ -78,9 +88,10 @@ function _einsum(eq::Expr)
 	ex = nest_loops(ex,dest_idx,dest_dim)
 
 	return quote
-	$ex_check_dims
-	$ex_get_type
-	$ex
+		$ex_check_dims
+		$ex_get_type
+		$ex_create_arrays
+		$ex
 	end
 end
 

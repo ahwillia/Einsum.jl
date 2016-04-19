@@ -3,6 +3,8 @@ Einstein summation notation in julia. Similar to numpy's [`einsum`](http://docs.
 
 ### Example:
 
+#### If destination is preallocated use `=`
+
 ```julia
 using Einsum
 A = zeros(5,6,7); # need to preallocate destination
@@ -10,6 +12,16 @@ X = randn(5,2);
 Y = randn(6,2);
 Z = randn(7,2);
 @einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]
+```
+
+#### If destination is not preallocated use `:=`
+
+```julia
+using Einsum
+X = randn(5,2);
+Y = randn(6,2);
+Z = randn(7,2);
+@einsum A[i,j,k] := X[i,r]*Y[j,r]*Z[k,r]
 ```
 
 The `@einsum` macro automatically generates code that looks much like the following (note that we "sum out" over the index `r`, since it only occurs on the right hand side of the equation):

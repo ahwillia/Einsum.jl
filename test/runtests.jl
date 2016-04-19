@@ -1,6 +1,8 @@
 using Base.Test
 using Einsum
 
+## Test with preallocated array ##
+
 A = zeros(5,6,7);
 X = randn(5,2);
 Y = randn(6,2);
@@ -20,18 +22,7 @@ for i = 1:5
 	end
 end
 
-A = zeros(5,6,7);
-X = randn(5);
-Y = randn(6);
-Z = randn(7);
+## Test without preallocated array ##
 
-@einsum A[i,j,k] = X[i]*Y[j]*Z[k]
-
-for i = 1:5
-	for j = 1:6
-		for k = 1:7
-			@test A[i,j,k] == X[i]*Y[j]*Z[k]
-		end
-	end
-end
-
+@einsum A2[i,j,k] := X[i,r]*Y[j,r]*Z[k,r]
+@test all(A .== A2)
