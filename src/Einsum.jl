@@ -63,7 +63,7 @@ function _einsum(eq::Expr)
 	# Create output array if specified by user 
 	if eq.head == :(:=)
 		ex_get_type = :($(esc(:(local T = eltype($(terms_dim[1].args[2]))))))
-		ex_create_arrays = :($(esc(:($(lhs.args[1]) = Array(T,$(dest_dim...))))))
+		ex_create_arrays = :($(esc(:($(lhs.args[1]) = Array(eltype($(terms_dim[1].args[2])),$(dest_dim...))))))
 	else
 		ex_get_type = :($(esc(:(local T = eltype($(lhs.args[1]))))))
 		ex_create_arrays = :(nothing)
@@ -88,10 +88,12 @@ function _einsum(eq::Expr)
 	ex = nest_loops(ex,dest_idx,dest_dim)
 
 	return quote
+		$ex_create_arrays
+		let
 		$ex_check_dims
 		$ex_get_type
-		$ex_create_arrays
 		$ex
+		end
 	end
 end
 
