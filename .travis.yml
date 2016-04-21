@@ -1,0 +1,4 @@
+language: julia
+julia:
+  - release
+  - nightly
