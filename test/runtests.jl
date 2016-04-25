@@ -40,6 +40,12 @@ end
 # had no indices/arguments
 x = randn(10)
 y = randn(10)
-k = 0.0
-@einsum k = x[i]*y[i]
+@einsum k := x[i]*y[i]
 @test k == dot(x,y)
+
+# Elementwise multiplication (this should create nested loops with no
+# no summation, due to lack of repeated variables.)
+x = randn(10)
+y = randn(10)
+@einsum k[i] := x[i]*y[i]
+@test all(k .== x.*y)

@@ -28,6 +28,7 @@ function _einsum(eq::Expr)
 
 	terms_idx,terms_dim = Symbol[],Expr[]
 	get_indices!(rhs,terms_idx,terms_dim)
+	terms_symb = [ terms_dim[i].args[2] for i in 1:length(terms_dim) ]
 
 	# remove duplicate indices found elsewhere in terms or dest
 	ex_check_dims = :()
@@ -67,9 +68,15 @@ function _einsum(eq::Expr)
 	end
 
 	# Create output array if specified by user 
+	ex_get_type = :(nothing)
+	ex_create_arrays = :(nothing)
 	if eq.head == :(:=)
-		ex_get_type = :($(esc(:(local T = eltype($(terms_dim[1].args[2]))))))
-		ex_create_arrays = :($(esc(:($(dest_symb) = Array(eltype($(terms_dim[1].args[2])),$(dest_dim...))))))
+		ex_get_type = :($(esc(:(local T = eltype($(terms_symb[1]))))))
+		if length(dest_dim) > 0
+			ex_create_arrays = :($(esc(:($(dest_symb) = Array(eltype($(terms_symb[1])),$(dest_dim...))))))
+		else
+			ex_create_arrays = :($(esc(:($(dest_symb) = zero(eltype($(terms_symb[1])))))))
+		end
 	else
 		ex_get_type = :($(esc(:(local T = eltype($(dest_symb))))))
 		ex_create_arrays = :(nothing)
@@ -78,21 +85,35 @@ function _einsum(eq::Expr)
 	# Copy equation, ex is the Expr we'll build up and return.
 	ex = deepcopy(eq)
 
-	# Innermost expression has form s += rhs
-	ex.args[1] = :s
-	ex.head = :(+=)
-	ex = esc(ex)
+	if length(terms_idx) > 0
+		# There are indices on rhs that do not appear in lhs.
+		# We sum over these variables.
 
-	ex = nest_loops(ex,terms_idx,terms_dim)
+		# Innermost expression has form s += rhs
+		ex.args[1] = :s
+		ex.head = :(+=)
+		ex = esc(ex)
 
-	ex = quote
-		$(esc(:(local s = zero(T))))
-		$ex 
-		$(esc(:($lhs = s)))
+		# Nest loops to iterate over the summed out variables
+		ex = nest_loops(ex,terms_idx,terms_dim)
+
+		# Prepend with s = 0, and append with assignment
+		# to the left hand side of the equation.
+		ex = quote
+			$(esc(:(local s = zero(T))))
+			$ex 
+			$(esc(:($lhs = s)))
+		end
+	else
+		# We do not sum over any indices
+		ex.head = :(=)
+		ex = :($(esc(ex)))
 	end
 
+	# Next loops to iterate over the destination variables
 	ex = nest_loops(ex,dest_idx,dest_dim)
 
+	# Assemble full expression and return
 	return quote
 		$ex_create_arrays
 		let
