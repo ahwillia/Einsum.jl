@@ -12,13 +12,19 @@ function _einsum(eq::Expr)
 	lhs = eq.args[1]
 	rhs = eq.args[2]
 
-	# Left hand side of equation must be a reference, e.g. A[i,j,k]
-	@assert length(lhs.args) > 1
-	@assert lhs.head == :ref
-
-	# recurse expression to find indices
+	# Get info on the left-hand side
 	dest_idx,dest_dim = Symbol[],Expr[]
-	get_indices!(lhs,dest_idx,dest_dim)
+	if typeof(lhs) == Symbol
+		dest_symb = lhs
+	else
+		# Left hand side of equation must be a reference, e.g. A[i,j,k]
+		@assert length(lhs.args) > 1
+		@assert lhs.head == :ref
+		dest_symb = lhs.args[1]
+
+		# recurse expression to find indices
+		get_indices!(lhs,dest_idx,dest_dim)
+	end
 
 	terms_idx,terms_dim = Symbol[],Expr[]
 	get_indices!(rhs,terms_idx,terms_dim)
@@ -63,9 +69,9 @@ function _einsum(eq::Expr)
 	# Create output array if specified by user 
 	if eq.head == :(:=)
 		ex_get_type = :($(esc(:(local T = eltype($(terms_dim[1].args[2]))))))
-		ex_create_arrays = :($(esc(:($(lhs.args[1]) = Array(eltype($(terms_dim[1].args[2])),$(dest_dim...))))))
+		ex_create_arrays = :($(esc(:($(dest_symb) = Array(eltype($(terms_dim[1].args[2])),$(dest_dim...))))))
 	else
-		ex_get_type = :($(esc(:(local T = eltype($(lhs.args[1]))))))
+		ex_get_type = :($(esc(:(local T = eltype($(dest_symb))))))
 		ex_create_arrays = :(nothing)
 	end	
 

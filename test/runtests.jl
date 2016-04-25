@@ -35,3 +35,11 @@ if true
 else
     @einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]
 end
+
+# At one point this threw an error because the lhs
+# had no indices/arguments
+x = randn(10)
+y = randn(10)
+k = 0.0
+@einsum k = x[i]*y[i]
+@test k == dot(x,y)
