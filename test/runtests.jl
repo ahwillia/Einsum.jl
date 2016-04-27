@@ -49,3 +49,11 @@ x = randn(10)
 y = randn(10)
 @einsum k[i] := x[i]*y[i]
 @test all(k .== x.*y)
+
+# Transpose a block matrix
+z = Any[ rand(2,2) for i=1:2, j=1:2]
+@einsum t[i,j] := transpose(z[j,i])
+@test all(z[1,1] .== t[1,1]')
+@test all(z[2,2] .== t[2,2]')
+@test all(z[1,2] .== t[2,1]')
+@test all(z[2,1] .== t[1,2]')
