@@ -25,7 +25,7 @@ end
 ## Test without preallocated array ##
 
 @einsum A2[i,j,k] := X[i,r]*Y[j,r]*Z[k,r]
-@test all(A .== A2)
+@test isapprox(A,A2)
 
 # Interesting test case, can throw an error that
 # local vars are declared twice. Solution was to wrap
@@ -41,19 +41,24 @@ end
 x = randn(10)
 y = randn(10)
 @einsum k := x[i]*y[i]
-@test k == dot(x,y)
+@test isapprox(k,dot(x,y))
 
 # Elementwise multiplication (this should create nested loops with no
 # no summation, due to lack of repeated variables.)
 x = randn(10)
 y = randn(10)
 @einsum k[i] := x[i]*y[i]
-@test all(k .== x.*y)
+@test isapprox(k,x.*y)
 
 # Transpose a block matrix
 z = Any[ rand(2,2) for i=1:2, j=1:2]
 @einsum t[i,j] := transpose(z[j,i])
-@test all(z[1,1] .== t[1,1]')
-@test all(z[2,2] .== t[2,2]')
-@test all(z[1,2] .== t[2,1]')
-@test all(z[2,1] .== t[1,2]')
+@test isapprox(z[1,1], t[1,1]')
+@test isapprox(z[2,2], t[2,2]')
+@test isapprox(z[1,2], t[2,1]')
+@test isapprox(z[2,1], t[1,2]')
+
+# Example from numpy
+A = reshape(collect(1:25),5,5)
+@einsum B[i] := A[i,i]
+@test all(B .== [1,7,13,19,25])
