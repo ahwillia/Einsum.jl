@@ -1,6 +1,12 @@
 using Base.Test
 using Einsum
 
+## Test that vars in Main aren't overwritten by einsum
+i = -1
+y = randn(10)
+@einsum x[i] := y[i] 
+@test i == -1
+
 ## Test with preallocated array ##
 
 A = zeros(5,6,7);
