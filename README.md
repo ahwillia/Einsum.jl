@@ -1,7 +1,8 @@
 [![Build Status](https://travis-ci.org/ahwillia/Einsum.jl.svg?branch=master)](https://travis-ci.org/ahwillia/Einsum.jl)
+[![Einsum](http://pkg.julialang.org/badges/Einsum_0.4.svg)](http://pkg.julialang.org/?pkg=Einsum)
 
 # Einsum.jl
-Einstein summation notation in julia. Similar to numpy's [`einsum`](http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.einsum.html) function.
+Einstein summation notation in julia. Similar to numpy's [`einsum`](http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.einsum.html) function. To install: `Pkg.add("Einsum")`.
 
 ### Usage:
 
@@ -49,6 +50,27 @@ To see exactly what is generated, use [`macroexpand`](http://docs.julialang.org/
 ```julia
 macroexpand(:(@einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]))
 ```
+
+### Other functionality
+
+In principle, the `@einsum` macro can flexibly implement function calls within the nested for loop structure. For example, consider transposing a block matrix:
+
+```julia
+z = Any[ rand(2,2) for i=1:2, j=1:2]
+@einsum t[i,j] := transpose(z[j,i])
+```
+
+This produces a for loop structure with a `transpose` function call in the middle. Approximately:
+
+```
+for j = 1:size(z,1)
+    for i = 1:size(z,2)
+        t[i,j] = transpose(z[j,i])
+    end
+end
+```
+
+Again, you can use [`macroexpand`](http://docs.julialang.org/en/release-0.4/manual/metaprogramming/#macros) to see the exact code that is generated.
 
 ### Benchmarks:
 
