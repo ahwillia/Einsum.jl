@@ -119,9 +119,11 @@ function _einsum(eq::Expr)
 	return quote
 		$ex_create_arrays
 		let
+		@inbounds begin
 		$ex_check_dims
 		$ex_get_type
 		$ex
+		end
 		end
 	end
 end
