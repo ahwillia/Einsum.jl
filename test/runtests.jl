@@ -10,7 +10,10 @@ y = randn(10)
 ## Test bounds checking
 X = randn(10,11)
 Y = randn(10,10)
+Q = randn(9)
 @test_throws AssertionError @einsum Z[i,j] := X[i,j]*Y[i,j]
+@test_throws AssertionError @einsum Z[i] := X[i,j]*Y[i,j]
+@test_throws AssertionError @einsum Z[i] := Q[j]*Y[i,j]
 
 ## Test with preallocated array ##
 
