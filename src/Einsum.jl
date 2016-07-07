@@ -127,7 +127,7 @@ end
 function nest_loops(ex::Expr,idx::Vector{Symbol},dim::Vector{Expr})
 	for (i,d) in zip(idx,dim)
 		ex = quote
-		    local $(esc(i)) = 1
+		    local $(esc(i))
 		    for $(esc(i)) = 1:$(esc(d))
 		        $(ex)
 		    end
