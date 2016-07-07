@@ -1,3 +1,5 @@
+isdefined(Base, :__precompile__) && __precompile__()
+
 module Einsum
 
 export @einsum
@@ -151,4 +153,4 @@ function get_indices!(ex::Expr,idx_store::Vector{Symbol},dim_store::Vector{Expr}
 	end
 end
 
-end
+end # module
