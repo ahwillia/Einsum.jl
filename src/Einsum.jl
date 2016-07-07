@@ -97,7 +97,7 @@ function _einsum(eq::Expr)
         ex = esc(ex)
 
         # Nest loops to iterate over the summed out variables
-        ex = nest_loops(ex,terms_idx,terms_dim)
+        ex = nest_loops(ex,terms_idx,terms_dim,true)
 
         # Prepend with s = 0, and append with assignment
         # to the left hand side of the equation.
@@ -128,23 +128,35 @@ function _einsum(eq::Expr)
     end
 end
 
-function nest_loops(ex::Expr,idx::Vector{Symbol},dim::Vector{Expr})
-    for (i,d) in zip(idx,dim)
-        if i == idx[end]
-            # Add @simd to the innermost loop.
-            ex = quote
-                local $(esc(i))
-                @simd for $(esc(i)) = 1:$(esc(d))
-                    $(ex)
-                end
+function nest_loops(ex::Expr,idx::Vector{Symbol},dim::Vector{Expr},simd=false)
+    if simd && !isempty(idx)
+        # innermost index and dimension
+        i = idx[1]
+        d = dim[1]
+
+        # Add @simd to the innermost loop.
+        ex = quote
+            local $(esc(i))
+            @simd for $(esc(i)) = 1:$(esc(d))
+                $(ex)
             end
-        else
-            # Outer loops
-            ex = quote
-                local $(esc(i))
-                for $(esc(i)) = 1:$(esc(d))
-                    $(ex)
-                end
+        end
+        start_ = 2
+    else
+        start_ = 1
+    end
+
+    # Add remaining for loops
+    for j = start_:length(idx)
+        # index and dimension we are looping over
+        i = idx[j]
+        d = dim[j]
+
+        # add for loop around expression
+        ex = quote
+            local $(esc(i))
+            for $(esc(i)) = 1:$(esc(d))
+                $(ex)
             end
         end
     end
