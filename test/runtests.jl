@@ -7,13 +7,19 @@ y = randn(10)
 @einsum x[i] := y[i] 
 @test i == -1
 
-## Test bounds checking
+## Test bounds checking on lhs
 X = randn(10,11)
 Y = randn(10,10)
 Q = randn(9)
 @test_throws AssertionError @einsum Z[i,j] := X[i,j]*Y[i,j]
 @test_throws AssertionError @einsum Z[i] := X[i,j]*Y[i,j]
 @test_throws AssertionError @einsum Z[i] := Q[j]*Y[i,j]
+
+## Test bounds checking on rhs
+B = randn(10,10)
+A = randn(5,10)
+@test_throws AssertionError @einsum B[i,j] = A[i,j]
+@einsum B[i,j] := A[i,j] # this should run without a problem
 
 ## Test with preallocated array ##
 
@@ -72,7 +78,16 @@ z = Any[ rand(2,2) for i=1:2, j=1:2]
 @test isapprox(z[1,2], t[2,1]')
 @test isapprox(z[2,1], t[1,2]')
 
+# Mapping functions
+A = randn(10,10)
+@einsum B[i,j] := exp(A[i,j])
+
 # Example from numpy
 A = reshape(collect(1:25),5,5)
 @einsum B[i] := A[i,i]
 @test all(B .== [1,7,13,19,25])
+
+#
+# TODO: consider adding support for this:
+# @einsum A[i,j] = A[i,j] + 50
+#
