@@ -24,11 +24,13 @@ A = randn(5,10)
 ## Test with preallocated array ##
 
 A = zeros(5,6,7);
+B = zeros(5,6,7);
 X = randn(5,2);
 Y = randn(6,2);
 Z = randn(7,2);
 
 @einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]
+@einsimd B[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]
 
 for i = 1:5
     for j = 1:6
@@ -38,6 +40,7 @@ for i = 1:5
                 s += X[i,r]*Y[j,r]*Z[k,r]
             end
             @test isapprox(A[i,j,k],s)
+            @test isapprox(B[i,j,k],s)
         end
     end
 end

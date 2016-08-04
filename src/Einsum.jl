@@ -2,13 +2,17 @@ isdefined(Base, :__precompile__) && __precompile__()
 
 module Einsum
 
-export @einsum
+export @einsum, @einsimd
 
 macro einsum(eq)
     _einsum(eq)
 end
 
-function _einsum(eq::Expr)
+macro einsimd(eq)
+    _einsum(eq,true)
+end
+
+function _einsum(eq::Expr,simd::Bool=false)
     
     # Get left hand side (lhs) and right hand side (rhs) of eq
     lhs = eq.args[1]
@@ -97,7 +101,7 @@ function _einsum(eq::Expr)
         ex = esc(ex)
 
         # Nest loops to iterate over the summed out variables
-        ex = nest_loops(ex,terms_idx,terms_dim,true)
+        ex = nest_loops(ex,terms_idx,terms_dim,simd)
 
         # Prepend with s = 0, and append with assignment
         # to the left hand side of the equation.
