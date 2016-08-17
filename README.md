@@ -72,24 +72,6 @@ end
 
 Again, you can use [`macroexpand`](http://docs.julialang.org/en/release-0.4/manual/metaprogramming/#macros) to see the exact code that is generated.
 
-### Benchmarks:
-
-See the `benchmarks/` folder for code.
-
-Julia:
-
-```julia
-julia> @time benchmark_einsum(30)
-  2.237183 seconds (12 allocations: 185.429 MB, 0.23% gc time)
-```
-
-Python:
-
-```python
-In [2]: %timeit benchmark_numpy(30)
-1 loop, best of 3: 9.27 s per loop
-```
-
 ### Related Packages:
 
 * https://github.com/Jutho/TensorOperations.jl
