@@ -76,6 +76,8 @@ function _einsum(eq::Expr,simd::Bool=false)
     # Create output array if specified by user 
     ex_get_type = :(nothing)
     ex_create_arrays = :(nothing)
+    ex_assignment_op = :(=)
+    
     if eq.head == :(:=)
         ex_get_type = :($(esc(:(local T = eltype($(terms_symb[1]))))))
         if length(dest_dim) > 0
@@ -86,6 +88,7 @@ function _einsum(eq::Expr,simd::Bool=false)
     else
         ex_get_type = :($(esc(:(local T = eltype($(dest_symb))))))
         ex_create_arrays = :(nothing)
+        ex_assignment_op = eq.head
     end 
 
     # Copy equation, ex is the Expr we'll build up and return.
@@ -103,16 +106,19 @@ function _einsum(eq::Expr,simd::Bool=false)
         # Nest loops to iterate over the summed out variables
         ex = nest_loops(ex,terms_idx,terms_dim,simd)
 
+
+        lhs_assignment = Expr(ex_assignment_op, lhs, :s)
         # Prepend with s = 0, and append with assignment
         # to the left hand side of the equation.
         ex = quote
             $(esc(:(local s = zero(T))))
             $ex 
-            $(esc(:($lhs = s)))
+            $(esc(lhs_assignment))
         end
     else
         # We do not sum over any indices
-        ex.head = :(=)
+        # ex.head = :(=)
+        ex.head = ex_assignment_op
         ex = :($(esc(ex)))
     end
 
