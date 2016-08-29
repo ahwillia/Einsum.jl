@@ -96,7 +96,6 @@ A = reshape(collect(1:25),5,5)
 #
 
 ## Test in-place operation with preallocated array ##
-
 A = randn(5,6,7);
 B = randn(5,6,7);
 A1 = copy(A);
@@ -128,3 +127,31 @@ k0 = randn()
 k = k0
 @einsum k += x[i]*y[i]
 @test isapprox(k,k0+dot(x,y))
+
+# test multiplication
+
+A1[:] = A[:]
+B1[:] = B[:]
+
+@einsum A[i,j,k] *= X[i,r]*Y[j,r]*Z[k,r]
+@einsimd B[i,j,k] *= X[i,r]*Y[j,r]*Z[k,r]
+
+for i = 1:5
+    for j = 1:6
+        for k = 1:7
+            s = 0.0
+            for r = 1:2
+                s += X[i,r]*Y[j,r]*Z[k,r]
+            end
+            @test isapprox(A[i,j,k],A1[i,j,k]*s)
+            @test isapprox(B[i,j,k],B1[i,j,k]*s)
+        end
+    end
+end
+
+x = randn(10)
+y = randn(10)
+k0 = randn()
+k = k0
+@einsum k *= x[i]*y[i]
+@test isapprox(k,k0*dot(x,y))
