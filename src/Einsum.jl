@@ -9,41 +9,34 @@ macro einsum(eq)
 end
 
 macro einsimd(eq)
-    _einsum(eq,true)
+    _einsum(eq,true,true)
 end
 
-function _einsum(eq::Expr,simd::Bool=false)
+macro einsum_checkinbounds(eq)
+    _einsum(eq,false)
+end
+
+function _einsum(eq::Expr, inbound=true, simd=false)
     
     # Get left hand side (lhs) and right hand side (rhs) of eq
     lhs = eq.args[1]
     rhs = eq.args[2]
 
     # Get info on the left-hand side
-    dest_idx,dest_dim = Symbol[],Expr[]
-    if typeof(lhs) == Symbol
-        dest_symb = lhs
-    else
-        # Left hand side of equation must be a reference, e.g. A[i,j,k]
-        @assert length(lhs.args) > 1
-        @assert lhs.head == :ref
-        dest_symb = lhs.args[1]
+    lhs_idx,lhs_arr,lhs_dim = get_indices!(lhs)
+    @assert length(lhs_arr) == 1
 
-        # recurse expression to find indices
-        get_indices!(lhs,dest_idx,dest_dim)
-    end
-
-    terms_idx,terms_dim = Symbol[],Expr[]
-    get_indices!(rhs,terms_idx,terms_dim)
-    terms_symb = [ terms_dim[i].args[2] for i in 1:length(terms_dim) ]
+    # Get info on the right-hand side
+    rhs_idx,rhs_arr,rhs_dim = get_indices!(rhs)
 
     # remove duplicate indices found elsewhere in terms or dest
     ex_check_dims = :()
-    for i in reverse(1:length(terms_idx))
+    for i in reverse(1:length(rhs_idx))
         duplicated = false
-        di = terms_dim[i]
+        di = rhs_dim[i]
         for j = 1:(i-1)
-            if terms_idx[j] == terms_idx[i]
-                dj = terms_dim[j]
+            if rhs_idx[j] == rhs_idx[i]
+                dj = rhs_dim[j]
                 ex_check_dims = quote
                     @assert $(esc(dj)) == $(esc(di))
                     $ex_check_dims
@@ -51,24 +44,21 @@ function _einsum(eq::Expr,simd::Bool=false)
                 duplicated = true
             end
         end
-        for j = 1:length(dest_idx)
-            if dest_idx[j] == terms_idx[i]
-                dj = dest_dim[j]
-                if eq.head == :(=)
-                    ex_check_dims = quote
-                        @assert $(esc(dj)) == $(esc(di))
-                        $ex_check_dims
-                    end
+        for j = 1:length(lhs_idx)
+            if lhs_idx[j] == rhs_idx[i]
+                dj = lhs_dim[j]
+                if eq.head == :(:=)
+                    lhs_dim[j] = di 
                 else
-                    # store size of output array for dim j 
-                    dest_dim[j] = di 
+                    # eq.head is =, +=, *=, etc.
+                    lhs_dim[j] = :(min($dj,$di))
                 end 
                 duplicated = true
             end
         end
         if duplicated
-            deleteat!(terms_idx,i)
-            deleteat!(terms_dim,i)
+            deleteat!(rhs_idx,i)
+            deleteat!(rhs_dim,i)
         end
         i -= 1
     end
@@ -79,14 +69,14 @@ function _einsum(eq::Expr,simd::Bool=false)
     ex_assignment_op = :(=)
     
     if eq.head == :(:=)
-        ex_get_type = :($(esc(:(local T = eltype($(terms_symb[1]))))))
-        if length(dest_dim) > 0
-            ex_create_arrays = :($(esc(:($(dest_symb) = Array(eltype($(terms_symb[1])),$(dest_dim...))))))
+        ex_get_type = :($(esc(:(local T = eltype($(rhs_arr[1]))))))
+        if length(lhs_dim) > 0
+            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array(eltype($(rhs_arr[1])),$(lhs_dim...))))))
         else
-            ex_create_arrays = :($(esc(:($(dest_symb) = zero(eltype($(terms_symb[1])))))))
+            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = zero(eltype($(rhs_arr[1])))))))
         end
     else
-        ex_get_type = :($(esc(:(local T = eltype($(dest_symb))))))
+        ex_get_type = :($(esc(:(local T = eltype($(lhs_arr[1]))))))
         ex_create_arrays = :(nothing)
         ex_assignment_op = eq.head
     end 
@@ -94,7 +84,7 @@ function _einsum(eq::Expr,simd::Bool=false)
     # Copy equation, ex is the Expr we'll build up and return.
     ex = deepcopy(eq)
 
-    if length(terms_idx) > 0
+    if length(rhs_idx) > 0
         # There are indices on rhs that do not appear in lhs.
         # We sum over these variables.
 
@@ -104,7 +94,7 @@ function _einsum(eq::Expr,simd::Bool=false)
         ex = esc(ex)
 
         # Nest loops to iterate over the summed out variables
-        ex = nest_loops(ex,terms_idx,terms_dim,simd)
+        ex = nest_loops(ex,rhs_idx,rhs_dim,simd)
 
 
         lhs_assignment = Expr(ex_assignment_op, lhs, :s)
@@ -123,17 +113,17 @@ function _einsum(eq::Expr,simd::Bool=false)
     end
 
     # Next loops to iterate over the destination variables
-    ex = nest_loops(ex,dest_idx,dest_dim)
+    ex = nest_loops(ex,lhs_idx,lhs_dim)
 
     # Assemble full expression and return
     return quote
         $ex_create_arrays
         let
-        @inbounds begin
-        $ex_check_dims
-        $ex_get_type
-        $ex
-        end
+            @inbounds begin
+                $ex_check_dims
+                $ex_get_type
+                $ex
+            end
         end
     end
 end
@@ -173,36 +163,81 @@ function nest_loops(ex::Expr,idx::Vector{Symbol},dim::Vector{Expr},simd=false)
     return ex
 end
 
-function get_indices!(ex::Expr,idx_store=Symbol[],dim_store=Expr[])
+function get_indices!(
+        ex::Symbol,
+        idx_store=Symbol[],
+        arr_store=Symbol[ex],
+        dim_store=Expr[]
+    )
+    return idx_store,arr_store,dim_store
+end
+
+function get_indices!(
+        ex::Expr,
+        idx_store=Symbol[],
+        arr_store=Symbol[],
+        dim_store=Expr[]
+    )
+
     if ex.head == :ref
+        # e.g. A[i,j,k] #
+        push!(arr_store, ex.args[1])
+
+        # iterate over indices (e.g. i,j,k)
         for (i,arg) in enumerate(ex.args[2:end])
+            
             if typeof(arg) == Symbol
                 # e.g. A[i]
+                #    First, push :i to index list
+                #    Second, push size(A,1) to dimension list
                 push!(idx_store,arg)
                 push!(dim_store,:(size($(ex.args[1]),$i)))
+            
             elseif typeof(arg) == QuoteNode
                 # e.g. A[:constant]
+                #    Do nothing, since we don't iterate over this dimension
                 continue
             else
-                # e.g. A[i+:offset]
-                @assert typeof(arg) == Expr
+                # e.g. A[i+:offset] or A[i+5]
+                #    arg is an Expr in this case
+                #    We restrict it to be a Symbol (e.g. :i) followed by either
+                #        a number or quoted expression.
+                #    As before, push :i to index list
+                #    Need to add/subtract off the offset to dimension list
                 @assert arg.head == :call
-                for a in arg.args[2:end]
-                    if typeof(a) == Symbol
-                        push!(idx_store,a)
-                    elseif typeof(a) == Expr
-                        get_indices!(a,idx_store,dim_store)
-                    end
+                op = arg.args[1]
+                sym = arg.args[2]
+                offT = typeof(arg.args[3])
+                if offT == QuoteNode
+                    off = arg.args[3].value::Symbol
+                elseif offT <: Integer
+                    off = arg.args[3]::Integer
+                else
+                    throw(ArgumentError("improper expression inside reference on rhs"))
+                end
+                @assert typeof(sym) == Symbol
+
+                # push :i to indices we're iterating over
+                push!(idx_store, sym)
+
+                # need to invert + or - to determine iteration range
+                if op == :+
+                    push!(dim_store,:( (size($(ex.args[1]),$i) - $off )))
+                elseif op == :-
+                    push!(dim_store,:( (size($(ex.args[1]),$i) + $off )))
+                else
+                    throw(ArgumentError("operations inside ref on rhs are limited to + or -"))
                 end
             end
         end
     else
+        # e.g. 2*A[i,j] or transpose(A[i,j])
         @assert ex.head == :call
         for arg in ex.args[2:end]
-            get_indices!(arg,idx_store,dim_store)
+            get_indices!(arg,idx_store,arr_store,dim_store)
         end
     end
-    idx_store,dim_store
+    idx_store,arr_store,dim_store
 end
 
 end # module

@@ -11,14 +11,10 @@ y = randn(10)
 X = randn(10,11)
 Y = randn(10,10)
 Q = randn(9)
-@test_throws AssertionError @einsum Z[i,j] := X[i,j]*Y[i,j]
-@test_throws AssertionError @einsum Z[i] := X[i,j]*Y[i,j]
-@test_throws AssertionError @einsum Z[i] := Q[j]*Y[i,j]
 
 ## Test bounds checking on rhs
 B = randn(10,10)
 A = randn(5,10)
-@test_throws AssertionError @einsum B[i,j] = A[i,j]
 @einsum B[i,j] := A[i,j] # this should run without a problem
 
 ## Test with preallocated array ##
@@ -155,3 +151,17 @@ k0 = randn()
 k = k0
 @einsum k *= x[i]*y[i]
 @test isapprox(k,k0*dot(x,y))
+
+# Test offsets
+
+X = randn(10)
+B = zeros(10)
+
+@einsum A[i] := X[i+5]
+@test size(A) == (5,)
+@test all(A .== X[6:end])
+
+@einsum B[i] = X[i+5]
+
+@test size(B) == (10,)
+@test all(B[1:5] .== X[6:end])
