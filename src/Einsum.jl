@@ -173,12 +173,28 @@ function nest_loops(ex::Expr,idx::Vector{Symbol},dim::Vector{Expr},simd=false)
     return ex
 end
 
-
-function get_indices!(ex::Expr,idx_store::Vector{Symbol},dim_store::Vector{Expr})
+function get_indices!(ex::Expr,idx_store=Symbol[],dim_store=Expr[])
     if ex.head == :ref
         for (i,arg) in enumerate(ex.args[2:end])
-            push!(idx_store,arg)
-            push!(dim_store,:(size($(ex.args[1]),$i)))
+            if typeof(arg) == Symbol
+                # e.g. A[i]
+                push!(idx_store,arg)
+                push!(dim_store,:(size($(ex.args[1]),$i)))
+            elseif typeof(arg) == QuoteNode
+                # e.g. A[:constant]
+                continue
+            else
+                # e.g. A[i+:offset]
+                @assert typeof(arg) == Expr
+                @assert arg.head == :call
+                for a in arg.args[2:end]
+                    if typeof(a) == Symbol
+                        push!(idx_store,a)
+                    elseif typeof(a) == Expr
+                        get_indices!(a,idx_store,dim_store)
+                    end
+                end
+            end
         end
     else
         @assert ex.head == :call
@@ -186,6 +202,7 @@ function get_indices!(ex::Expr,idx_store::Vector{Symbol},dim_store::Vector{Expr}
             get_indices!(arg,idx_store,dim_store)
         end
     end
+    idx_store,dim_store
 end
 
 end # module
