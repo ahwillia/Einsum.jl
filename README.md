@@ -1,5 +1,5 @@
 # Einsum.jl
-**Einstein summation notation similar to numpy's [`einsum`](http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.einsum.html) function (but more flexible!).**
+Einstein summation notation similar to numpy's [`einsum`](http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.einsum.html) function (but more flexible!).
 
 | **PackageEvaluator** | **Package Build** | **Package Status** |
 |:--------------------:|:---------:|:------------------:|
@@ -8,7 +8,7 @@
 
 To install: `Pkg.add("Einsum")`.
 
-### Usage:
+## Documentation:
 
 #### If destination is preallocated use `=`
 
