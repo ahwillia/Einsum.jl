@@ -194,8 +194,8 @@ function get_indices!(
                 push!(idx_store,arg)
                 push!(dim_store,:(size($(ex.args[1]),$i)))
             
-            elseif typeof(arg) == QuoteNode
-                # e.g. A[:constant]
+            elseif typeof(arg) <: Number
+                # e.g. A[5]
                 #    Do nothing, since we don't iterate over this dimension
                 continue
             else
@@ -205,6 +205,7 @@ function get_indices!(
                 #        a number or quoted expression.
                 #    As before, push :i to index list
                 #    Need to add/subtract off the offset to dimension list
+                arg.head == :quote && continue
                 @assert arg.head == :call
                 @assert length(arg.args) == 3
                 op = arg.args[1]

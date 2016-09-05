@@ -241,3 +241,21 @@ let
   @test isapprox(C,X.*k)
   @test isapprox(D,X./k)
 end
+
+# Test indexing with a constant
+let
+  A = randn(10,2)
+  j = 2
+  @einsum B[i] := A[i,:j]
+  @test all(B .== A[:,j])
+  @einsum C[i] := A[i,1]
+  @test all(C .== A[:,1])
+  
+  D = zeros(10,3)
+  @einsum D[i,1] = A[i,:j]
+  @test isapprox(D[:,1],A[:,j])
+  @einsum D[i,:j] = A[i,:j]
+  @test isapprox(D[:,j],A[:,j])
+end
+
+
