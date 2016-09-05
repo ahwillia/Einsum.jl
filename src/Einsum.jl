@@ -171,6 +171,8 @@ function get_indices!(
     return idx_store,arr_store,dim_store
 end
 
+@inline get_indices!(ex::Number,args...) = (args...)
+
 function get_indices!(
         ex::Expr,
         idx_store=Symbol[],

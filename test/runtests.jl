@@ -203,3 +203,41 @@ let
   @test size(B) == (10,)
   @test all(B[1:5] .== X[6:end])
 end
+
+# Test adding/subtracting constants
+let
+  k = 5
+  X = randn(10)
+
+  # without preallocation
+  @einsum A[i] := X[i] + k
+  @einsum B[i] := X[i] - k
+  @test isapprox(A,X+k)
+  @test isapprox(B,X-k)
+
+  # with preallocation
+  C,D = zeros(10),zeros(10)
+  @einsum C[i] = X[i] + k 
+  @einsum D[i] = X[i] - k 
+  @test isapprox(C,X+k)
+  @test isapprox(D,X-k)
+end
+
+# Test multiplying/dividing constants
+let
+  k = 5
+  X = randn(10)
+
+  # without preallocation
+  @einsum A[i] := X[i]*k
+  @einsum B[i] := X[i]/k
+  @test isapprox(A,X.*k)
+  @test isapprox(B,X./k)
+
+  # with preallocation
+  C,D = zeros(10),zeros(10)
+  @einsum C[i] = X[i]*k 
+  @einsum D[i] = X[i]/k 
+  @test isapprox(C,X.*k)
+  @test isapprox(D,X./k)
+end
