@@ -187,19 +187,19 @@ let
   @test all(B[1:5] .== X[6:end])
 end
 
-# # Test symbolic offsets
-# let
-#   offset = 5
-#   X = randn(10)
+# Test symbolic offsets
+let
+  offset = 5
+  X = randn(10)
 
-#   # without preallocation
-#   @einsum A[i] := X[i+:offset]
-#   @test size(A) == (5,)
-#   @test all(A .== X[6:end])
+  # without preallocation
+  @einsum A[i] := X[i+:offset]
+  @test size(A) == (5,)
+  @test all(A .== X[6:end])
 
-#   # with preallocation
-#   B = zeros(10)
-#   @einsum B[i] = X[i+:offset]
-#   @test size(B) == (10,)
-#   @test all(B[1:5] .== X[6:end])
-# end
+  # with preallocation
+  B = zeros(10)
+  @einsum B[i] = X[i+:offset]
+  @test size(B) == (10,)
+  @test all(B[1:5] .== X[6:end])
+end

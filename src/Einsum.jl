@@ -82,7 +82,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     end 
 
     # Copy equation, ex is the Expr we'll build up and return.
-    # remove_quote_nodes!(ex)
+    remove_quote_nodes!(ex)
 
     if length(rhs_idx) > 0
         # There are indices on rhs that do not appear in lhs.
@@ -95,7 +95,6 @@ function _einsum(ex::Expr, inbound=true, simd=false)
 
         # Nest loops to iterate over the summed out variables
         ex = nest_loops(ex,rhs_idx,rhs_dim,simd)
-
 
         lhs_assignment = Expr(ex_assignment_op, lhs, :s)
         # Prepend with s = 0, and append with assignment
@@ -245,10 +244,12 @@ end
 
 function remove_quote_nodes!(ex::Expr)
     for i = 1:length(ex.args)
-        if typeof(ex.args[i]) == QuoteNode
-            ex.args[i] = ex.args[i].value
-        elseif typeof(ex.args[i]) == Expr
-            ex.args[i] = remove_quote_nodes!(ex.args[i])
+        if typeof(ex.args[i]) == Expr
+            if ex.args[i].head == :quote
+                ex.args[i] = :($(ex.args[i].args[1]))
+            else
+                remove_quote_nodes!(ex.args[i])
+            end
         end
     end
     return ex
