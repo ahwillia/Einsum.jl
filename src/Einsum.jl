@@ -4,23 +4,23 @@ module Einsum
 
 export @einsum, @einsimd
 
-macro einsum(eq)
-    _einsum(eq)
+macro einsum(ex)
+    _einsum(ex)
 end
 
-macro einsimd(eq)
-    _einsum(eq,true,true)
+macro einsimd(ex)
+    _einsum(ex,true,true)
 end
 
-macro einsum_checkinbounds(eq)
-    _einsum(eq,false)
+macro einsum_checkinbounds(ex)
+    _einsum(ex,false)
 end
 
-function _einsum(eq::Expr, inbound=true, simd=false)
+function _einsum(ex::Expr, inbound=true, simd=false)
     
-    # Get left hand side (lhs) and right hand side (rhs) of eq
-    lhs = eq.args[1]
-    rhs = eq.args[2]
+    # Get left hand side (lhs) and right hand side (rhs) of equation
+    lhs = ex.args[1]
+    rhs = ex.args[2]
 
     # Get info on the left-hand side
     lhs_idx,lhs_arr,lhs_dim = get_indices!(lhs)
@@ -47,10 +47,10 @@ function _einsum(eq::Expr, inbound=true, simd=false)
         for j = 1:length(lhs_idx)
             if lhs_idx[j] == rhs_idx[i]
                 dj = lhs_dim[j]
-                if eq.head == :(:=)
+                if ex.head == :(:=)
                     lhs_dim[j] = di 
                 else
-                    # eq.head is =, +=, *=, etc.
+                    # ex.head is =, +=, *=, etc.
                     lhs_dim[j] = :(min($dj,$di))
                 end 
                 duplicated = true
@@ -68,7 +68,7 @@ function _einsum(eq::Expr, inbound=true, simd=false)
     ex_create_arrays = :(nothing)
     ex_assignment_op = :(=)
     
-    if eq.head == :(:=)
+    if ex.head == :(:=)
         ex_get_type = :($(esc(:(local T = eltype($(rhs_arr[1]))))))
         if length(lhs_dim) > 0
             ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array(eltype($(rhs_arr[1])),$(lhs_dim...))))))
@@ -78,11 +78,11 @@ function _einsum(eq::Expr, inbound=true, simd=false)
     else
         ex_get_type = :($(esc(:(local T = eltype($(lhs_arr[1]))))))
         ex_create_arrays = :(nothing)
-        ex_assignment_op = eq.head
+        ex_assignment_op = ex.head
     end 
 
     # Copy equation, ex is the Expr we'll build up and return.
-    ex = deepcopy(eq)
+    # remove_quote_nodes!(ex)
 
     if length(rhs_idx) > 0
         # There are indices on rhs that do not appear in lhs.
@@ -205,13 +205,16 @@ function get_indices!(
                 #    As before, push :i to index list
                 #    Need to add/subtract off the offset to dimension list
                 @assert arg.head == :call
+                @assert length(arg.args) == 3
                 op = arg.args[1]
                 sym = arg.args[2]
                 offT = typeof(arg.args[3])
-                if offT == QuoteNode
-                    off = arg.args[3].value::Symbol
-                elseif offT <: Integer
+                if offT <: Integer
                     off = arg.args[3]::Integer
+                elseif offT <: Expr && arg.args[3].head == :quote
+                    off = arg.args[3].args[1]::Symbol
+                elseif offT == QuoteNode
+                    off = arg.args[3].value::Symbol
                 else
                     throw(ArgumentError("improper expression inside reference on rhs"))
                 end
@@ -238,6 +241,17 @@ function get_indices!(
         end
     end
     idx_store,arr_store,dim_store
+end
+
+function remove_quote_nodes!(ex::Expr)
+    for i = 1:length(ex.args)
+        if typeof(ex.args[i]) == QuoteNode
+            ex.args[i] = ex.args[i].value
+        elseif typeof(ex.args[i]) == Expr
+            ex.args[i] = remove_quote_nodes!(ex.args[i])
+        end
+    end
+    return ex
 end
 
 end # module
