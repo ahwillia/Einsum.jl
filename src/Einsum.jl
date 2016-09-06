@@ -10,14 +10,11 @@ macro einsum(ex)
 end
 
 macro einsimd(ex)
-    _einsum(ex,true,true)
+    _einsum(ex,true)
 end
 
-macro einsum_checkinbounds(ex)
-    _einsum(ex,false)
-end
 
-function _einsum(ex::Expr, inbound=true, simd=false)
+function _einsum(ex::Expr, simd=false)
     
     # Get left hand side (lhs) and right hand side (rhs) of equation
     lhs = ex.args[1]
@@ -38,50 +35,36 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     
     # process RHS indices
     for jj=1:length(rhs_idx)
-      idx = rhs_idx[jj]
-      if idx ∈ keys(range_by_idx)
-        range_by_idx[idx] = intersect_ranges(range_by_idx[idx], rhs_range[jj])
-      else
-        range_by_idx[idx] = rhs_range[jj]
-      end
+        idx = rhs_idx[jj]
+        if idx ∈ keys(range_by_idx)
+            range_by_idx[idx] = intersect_ranges(range_by_idx[idx], rhs_range[jj])
+        else
+            range_by_idx[idx] = rhs_range[jj]
+        end
     end
 
     if ex.head != :(:=)
-      # process LHS indices
-      for jj=1:length(lhs_idx)
-        idx = lhs_idx[jj]
-        if idx ∈ keys(range_by_idx)
-          range_by_idx[idx] = intersect_ranges(range_by_idx[idx], lhs_range[jj])
-        else
-          range_by_idx[idx] = lhs_range[jj]
+        # process LHS indices
+        for jj=1:length(lhs_idx)
+            idx = lhs_idx[jj]
+            if idx ∈ keys(range_by_idx)
+                range_by_idx[idx] = intersect_ranges(range_by_idx[idx], lhs_range[jj])
+            else
+                range_by_idx[idx] = lhs_range[jj]
+            end
         end
-      end
     end
     
     # remove duplicate indices found elsewhere in terms or dest
-    # ex_check_dims = :()
     for i in reverse(1:length(rhs_idx))
         duplicated = false
-        # di = rhs_dim[i]
         for j = 1:(i-1)
             if rhs_idx[j] == rhs_idx[i]
-                # dj = rhs_dim[j]
-                # ex_check_dims = quote
-                #     @assert $(esc(dj)) == $(esc(di))
-                #     $ex_check_dims
-                # end
                 duplicated = true
             end
         end
         for j = 1:length(lhs_idx)
             if lhs_idx[j] == rhs_idx[i]
-                # dj = lhs_dim[j]
-                # if ex.head == :(:=)
-                #     lhs_dim[j] = di 
-                # else
-                #     # ex.head is =, +=, *=, etc.
-                #     lhs_dim[j] = :(min($dj,$di))
-                # end 
                 duplicated = true
             end
         end
@@ -103,7 +86,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
         #    e.g. rhs_arr = [:A,:B]
         #    then the following line produces :(promote_type(eltype(A),eltype(B)))
         rhs_type = Expr(:call,:promote_type, [ Expr(:call,:eltype,arr) for arr in rhs_arr ]...)
-        lhs_sizes=[:(length($(range_by_idx[idx]))) for idx=lhs_idx]
+        lhs_sizes=[:($(range_by_idx[idx].args[2])) for idx=lhs_idx]
         
         ex_get_type = :($(esc(:(local T = $rhs_type))))
         if length(lhs_sizes) > 0
@@ -155,7 +138,6 @@ function _einsum(ex::Expr, inbound=true, simd=false)
         $ex_create_arrays
         let
             @inbounds begin
-                # $ex_check_dims
                 $ex_get_type
                 $ex
             end
@@ -165,21 +147,21 @@ end
 
 
 function intersect_ranges(rng1::Expr, rng2::Expr)
-  @assert rng1.head == :(:)
-  @assert rng2.head == :(:)
-  
-  if rng1.args[1] == rng2.args[1]
-    lo = rng1.args[1]
-  else
-    lo = :(max($(rng1.args[1]),$(rng2.args[1])))
-  end
-  
-  if rng1.args[2] == rng2.args[2]
-    hi = rng1.args[2]
-  else
-    hi = :(min($(rng1.args[2]),$(rng2.args[2])))
-  end
-  :($(lo):$(hi))
+    @assert rng1.head == :(:)
+    @assert rng2.head == :(:)
+    
+    if rng1.args[1] == rng2.args[1]
+        lo = rng1.args[1]
+    else
+        lo = :(max($(rng1.args[1]),$(rng2.args[1])))
+    end
+    
+    if rng1.args[2] == rng2.args[2]
+        hi = rng1.args[2]
+    else
+        hi = :(min($(rng1.args[2]),$(rng2.args[2])))
+    end
+      :($(lo):$(hi))
 end
 
 function nest_loops(ex::Expr,idx::Vector{Symbol},rng_by_idx::Dict{Symbol,Expr},simd=false)
