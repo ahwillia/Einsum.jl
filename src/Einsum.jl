@@ -2,6 +2,7 @@ isdefined(Base, :__precompile__) && __precompile__()
 
 module Einsum
 
+using Base.Cartesian
 export @einsum, @einsimd
 
 macro einsum(ex)
@@ -69,11 +70,17 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     ex_assignment_op = :(=)
     
     if ex.head == :(:=)
-        ex_get_type = :($(esc(:(local T = eltype($(rhs_arr[1]))))))
+        
+        # infer type of allocated array
+        #    e.g. rhs_arr = [:A,:B]
+        #    then the following line produces :(promote_type(eltype(A),eltype(B)))
+        rhs_type = Expr(:call,:promote_type, [ Expr(:call,:eltype,arr) for arr in rhs_arr ]...)
+        
+        ex_get_type = :($(esc(:(local T = $rhs_type))))
         if length(lhs_dim) > 0
-            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array(eltype($(rhs_arr[1])),$(lhs_dim...))))))
+            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array($rhs_type,$(lhs_dim...))))))
         else
-            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = zero(eltype($(rhs_arr[1])))))))
+            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = zero($rhs_type)))))
         end
     else
         ex_get_type = :($(esc(:(local T = eltype($(lhs_arr[1]))))))

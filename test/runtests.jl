@@ -258,4 +258,19 @@ let
   @test isapprox(D[:,j],A[:,j])
 end
 
+# Better type inference on allocating arrays
+let
+  B1 = ones(Int,5)
+  B2 = ones(Float32,5)
+  B3 = ones(5)
+  C = randn(5)
+  @einsum A1[i,j] := B1[i]*C[j]
+  @einsum A2[i,j] := B2[i]*C[j]
+  @einsum A3[i,j] := B3[i]*C[j]
 
+  @test eltype(A1) == Float64
+  @test eltype(A2) == Float64
+  @test eltype(A3) == Float64
+  @test isapprox(A1,A3)
+  @test isapprox(A2,A3)
+end
