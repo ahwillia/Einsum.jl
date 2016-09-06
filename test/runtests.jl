@@ -179,12 +179,33 @@ let
   @einsum A[i] := X[i+5]
   @test size(A) == (5,)
   @test all(A .== X[6:end])
+  
+  @einsum A[i] := X[i-5]
+  @test size(A) == (10,)
+  @test all(A[6:end] .== X[1:5])
+
+  @einsum A[i] := X[i+3]*X[i-3]
+  @test size(A) == (7,)
+  @test isapprox(A[4:7], X[7:end].*X[1:4])
+
 
   # with preallocation
   B = zeros(10)
   @einsum B[i] = X[i+5]
-  @test size(B) == (10,)
   @test all(B[1:5] .== X[6:end])
+
+  @einsum B[i] = X[i-5]
+  @test all(B[6:end] .== X[1:5])
+  
+  @einsum B[i] := X[i+3]*X[i-3]
+  @test isapprox(B[4:7], X[7:end].*X[1:4])
+  
+  # with contraction
+  Y = randn(10,10)
+  @einsum A[i] := Y[i,j+3]*Y[i,j-3]
+  @test size(A) == (10,)
+  @test isapprox(A,sum(Y[:,7:end].*Y[:,1:4],2))
+
 end
 
 # Test symbolic offsets
