@@ -8,6 +8,8 @@ Einstein summation notation similar to numpy's [`einsum`](http://docs.scipy.org/
 
 To install: `Pkg.add("Einsum")`.
 
+## New Documentation:
+
 ## Documentation:
 
 #### If destination is preallocated use `=`
