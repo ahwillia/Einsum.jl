@@ -8,7 +8,78 @@ Einstein summation notation similar to numpy's [`einsum`](http://docs.scipy.org/
 
 To install: `Pkg.add("Einsum")`.
 
-## New Documentation:
+## Documentation
+
+### Quickstart example:
+
+To install and load the package use:
+```julia
+Pkg.add("Einsum")
+using Einsum
+```
+This package exports a single macro `@einsum`, which implements *similar* notation to the [Einstein summation convention](https://en.wikipedia.org/wiki/Einstein_notation) to flexibly specify operations on Julia `Array`s. For example, basic matrix multiplication can be implemented as:
+```julia
+@einsum A[i,j] := B[i,k]*C[k,j]
+```
+To execute this computation, `@einsum` uses [Julia's metaprogramming capabilities](http://docs.julialang.org/en/stable/manual/metaprogramming/) to generate and execute a series of nested for loops. In a nutshell, the generated code looks like this:
+```julia
+# determine type
+T = promote_type(eltype(B),eltype(C))
+
+# allocate new array
+A = Array(T,size(B))
+
+# check dimensions
+@assert size(B,2) == size(C,2)
+
+# main loop
+@inbounds begin # skip bounds-checking for speed
+    for i = 1:size(B,1), j = 1:size(C,2)
+        s = zero(T)
+        for k = 1:size(B,2)
+            s += B[i,k]*C[k,j]
+        end
+        A[i,j] = z
+    end
+end
+```
+The actual generated code is a bit more verbose (and not neatly commented/formatted); you can view it by using the [`macroexpand`](http://docs.julialang.org/en/stable/stdlib/base/#Base.macroexpand) command:
+```julia
+macroexpand(:( @einsum A[i,j] := B[i,k]*C[k,j] ))
+```
+
+### Assignment and updating operators:
+
+* `=` overwrite result in existing Array
+* `:=` allocate a new array
+* `+=`, `-=` add to or subtract from an existing array 
+
+Calling `@einsum` with the `:=` operator separating the left and right hand side of the equation signals that you'd like to allocate a new array to store the result of the computation. This borrows from mathematical notation where `:=` denotes "equal to by definition." An example:
+```julia
+using Einsum
+X = randn(5,2)
+Y = randn(6,2)
+Z = randn(7,2)
+
+# creates new array A with appropriate dimensions
+@einsum A[i,j,k] := X[i,r]*Y[j,r]*Z[k,r]
+```
+If you would rather allocate the space yourself, use the `=` operator instead
+```julia
+using Einsum
+A = randn(5,6,7); # preallocate space yourself
+X = randn(5,2)
+Y = randn(6,2)
+Z = randn(7,2)
+
+# Store the result in A, overwriting as necessary
+@einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]
+```
+
+### Rules for indexing variables
+
+* Indices that show up on the left-hand-side but not the right-hand-side are summed over
+* Indices that appear over multiple dimensions must match
 
 `@einsum` iterates over the extent of the right-hand-side indices. For example, the following code allocates an array `A` that is the same size as `B` and copies its data into `A`:
 ```julia
@@ -18,87 +89,39 @@ If an index appears on the right-hand-side, but does not appear on the left-hand
 ```julia
 @einsum A[i] := B[i,j]  # same as A = sum(B,2)
 ```
-If an index appears multiple times on the right-hand-side, then 
+If an index variable appears multiple times on the right-hand-side, then it is asserted that the sizes of these dimensions match. For example,
 ```julia
 @einsum A[i] := B[i,j]*C[j]
-# same as:
-#     assert size(B,2) == size(C,1)
-#     for i = 1:size(B,1), j = 1:size(B,2)
-#        A[i] += B[i,j]*C[j]
-#     end
 ```
+will check that the second dimension of `B` matches the first dimension of `C` in length. In particular it is equivalent to the following code:
+```
+A = zeros(size(B,1))
+@assert size(B,2) == size(C,1)
+for i = 1:size(B,1), j = 1:size(B,2)
+    A[i] += B[i,j]*C[j]
+end
+```
+So an error will be thrown if the specified dimensions of `B` and `C` don't match.
+
+### Advanced indexing -- symbols
+
+The following example will copy the fifth column of `B` into `A`.
+```julia
+j = 5
+@einsum A[i] = B[i,:j]
+```
+
+### Advanced indexing -- shifts and offsets
+
 `@einsum` also allows offsets on the right-hand-side:
 ```julia
 @einsum A[i] = B[i-5]
 ```
-
-## Documentation:
-
-#### If destination is preallocated use `=`
-
+Symbolic offsets are also possible:
 ```julia
-using Einsum
-A = zeros(5,6,7); # need to preallocate destination
-X = randn(5,2)
-Y = randn(6,2)
-Z = randn(7,2)
-@einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]
+j = 5
+@einsum A[i] = B[i-:j]
 ```
-
-#### If destination is not preallocated use `:=`
-
-```julia
-using Einsum
-X = randn(5,2)
-Y = randn(6,2)
-Z = randn(7,2)
-@einsum A[i,j,k] := X[i,r]*Y[j,r]*Z[k,r] # creates new array A with appropriate dimensions
-```
-
-#### What happens under the hood:
-
-The `@einsum` macro automatically generates code that looks much like the following (note that we "sum out" over the index `r`, since it only occurs on the right hand side of the equation):
-
-```julia
-for k = 1:size(A,3)
-    for j = 1:size(A,2)
-        for i = 1:size(A,1)
-            s = 0
-            for r = 1:size(X,2)
-                s += X[i,r] * Y[j,r] * Z[k,r]
-            end
-            A[i,j,k] = s
-        end
-    end
-end
-```
-
-To see exactly what is generated, use [`macroexpand`](http://docs.julialang.org/en/release-0.4/manual/metaprogramming/#macros):
-
-```julia
-macroexpand(:(@einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]))
-```
-
-### Other functionality
-
-In principle, the `@einsum` macro can flexibly implement function calls within the nested for loop structure. For example, consider transposing a block matrix:
-
-```julia
-z = Any[ rand(2,2) for i=1:2, j=1:2]
-@einsum t[i,j] := transpose(z[j,i])
-```
-
-This produces a for loop structure with a `transpose` function call in the middle. Approximately:
-
-```
-for j = 1:size(z,1)
-    for i = 1:size(z,2)
-        t[i,j] = transpose(z[j,i])
-    end
-end
-```
-
-Again, you can use [`macroexpand`](http://docs.julialang.org/en/release-0.4/manual/metaprogramming/#macros) to see the exact code that is generated.
 
 ### Related Packages:
 
