@@ -10,6 +10,28 @@ To install: `Pkg.add("Einsum")`.
 
 ## New Documentation:
 
+`@einsum` iterates over the extent of the right-hand-side indices. For example, the following code allocates an array `A` that is the same size as `B` and copies its data into `A`:
+```julia
+@einsum A[i,j] := B[i,j]  # same as A = copy(B)
+```
+If an index appears on the right-hand-side, but does not appear on the left-hand-side, then this variable is summed over. For example, the following code allocates `A` to be `size(B,1)` and sums over the rows of `B`:
+```julia
+@einsum A[i] := B[i,j]  # same as A = sum(B,2)
+```
+If an index appears multiple times on the right-hand-side, then 
+```julia
+@einsum A[i] := B[i,j]*C[j]
+# same as:
+#     assert size(B,2) == size(C,1)
+#     for i = 1:size(B,1), j = 1:size(B,2)
+#        A[i] += B[i,j]*C[j]
+#     end
+```
+`@einsum` also allows offsets on the right-hand-side:
+```julia
+@einsum A[i] = B[i-5]
+```
+
 ## Documentation:
 
 #### If destination is preallocated use `=`
