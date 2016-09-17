@@ -122,10 +122,21 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     ex = nest_loops(ex,lhs_idx,lhs_dim)
 
     # Assemble full expression and return
-    return quote
-        $ex_create_arrays
-        let
-            @inbounds begin
+    if inbound
+        return quote
+            $ex_create_arrays
+            let
+                @inbounds begin
+                    $ex_check_dims
+                    $ex_get_type
+                    $ex
+                end
+            end
+        end
+    else
+        return quote
+            $ex_create_arrays
+            let
                 $ex_check_dims
                 $ex_get_type
                 $ex
