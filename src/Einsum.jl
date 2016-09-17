@@ -242,6 +242,8 @@ function get_indices!(
                 end
             end
         end
+    elseif ex.head == :comparison
+        # pass as is to allow expressions like `@einsum B[i, j] := (i == j) * A[i, j]`
     else
         # e.g. 2*A[i,j] or transpose(A[i,j])
         @assert ex.head == :call
