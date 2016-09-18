@@ -25,30 +25,41 @@ function _einsum(ex::Expr, inbound=true, simd=false)
 
     # Get info on the left-hand side
     lhs_idx,lhs_arr,lhs_dim = get_indices!(lhs)
-    @assert length(lhs_arr) == 1
+    length(lhs_arr) != 1 && throw(ArgumentError("Left-hand side of ",
+        "equation contains multiple arguments. Only a single referencing ",
+        " expression (e.g. @einsum A[i] = ...) should be used,"))
 
     # Get info on the right-hand side
     rhs_idx,rhs_arr,rhs_dim = get_indices!(rhs)
 
-    # remove duplicate indices found elsewhere in terms or dest
+    # remove duplicate indices on left-hand and right-hand side
+    # and ensure that the array sizes match along these dimensions
+    ###########################################################
     ex_check_dims = :()
+
+    # remove duplicate indices on the right hand side
     for i in reverse(1:length(rhs_idx))
         duplicated = false
         di = rhs_dim[i]
         for j = 1:(i-1)
             if rhs_idx[j] == rhs_idx[i]
+                # found a duplicate
+                duplicated = true
                 dj = rhs_dim[j]
+
+                # add dimension check ensuring consistency
                 ex_check_dims = quote
                     @assert $(esc(dj)) == $(esc(di))
                     $ex_check_dims
                 end
-                duplicated = true
             end
         end
         for j = 1:length(lhs_idx)
             if lhs_idx[j] == rhs_idx[i]
                 dj = lhs_dim[j]
                 if ex.head == :(:=)
+                    # ex.head is :=
+                    # infer the size of the lhs array
                     lhs_dim[j] = di 
                 else
                     # ex.head is =, +=, *=, etc.
@@ -61,7 +72,32 @@ function _einsum(ex::Expr, inbound=true, simd=false)
             deleteat!(rhs_idx,i)
             deleteat!(rhs_dim,i)
         end
-        i -= 1
+    end
+
+    # remove duplicate indices on the left hand side
+    for i in reverse(1:length(lhs_idx))
+        duplicated = false
+        di = lhs_dim[i]
+
+        # don't need to check rhs, already done above
+
+        for j = 1:(i-1)
+            if lhs_idx[j] == lhs_idx[i]
+                # found a duplicate
+                duplicated = true
+                dj = lhs_dim[j]
+
+                # add dimension check
+                ex_check_dims = quote
+                    @assert $(esc(dj)) == $(esc(di))
+                    $ex_check_dims
+                end
+            end
+        end
+        if duplicated
+            deleteat!(lhs_idx,i)
+            deleteat!(lhs_dim,i)
+        end
     end
 
     # Create output array if specified by user 
@@ -276,4 +312,6 @@ function remove_quote_nodes!(ex::Expr)
     return ex
 end
 
-end # module
+# end module
+############
+end
