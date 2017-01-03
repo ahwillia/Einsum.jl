@@ -18,7 +18,7 @@ macro einsum_checkinbounds(ex)
 end
 
 function _einsum(ex::Expr, inbound=true, simd=false)
-    
+
     # Get left hand side (lhs) and right hand side (rhs) of equation
     lhs = ex.args[1]
     rhs = ex.args[2]
@@ -60,11 +60,11 @@ function _einsum(ex::Expr, inbound=true, simd=false)
                 if ex.head == :(:=)
                     # ex.head is :=
                     # infer the size of the lhs array
-                    lhs_dim[j] = di 
+                    lhs_dim[j] = di
                 else
                     # ex.head is =, +=, *=, etc.
                     lhs_dim[j] = :(min($dj,$di))
-                end 
+                end
                 duplicated = true
             end
         end
@@ -100,18 +100,18 @@ function _einsum(ex::Expr, inbound=true, simd=false)
         end
     end
 
-    # Create output array if specified by user 
+    # Create output array if specified by user
     ex_get_type = :(nothing)
     ex_create_arrays = :(nothing)
     ex_assignment_op = :(=)
-    
+
     if ex.head == :(:=)
-        
+
         # infer type of allocated array
         #    e.g. rhs_arr = [:A,:B]
         #    then the following line produces :(promote_type(eltype(A),eltype(B)))
         rhs_type = Expr(:call,:promote_type, [ Expr(:call,:eltype,arr) for arr in rhs_arr ]...)
-        
+
         ex_get_type = :($(esc(:(local T = $rhs_type))))
         if length(lhs_dim) > 0
             ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array($rhs_type,$(lhs_dim...))))))
@@ -122,10 +122,10 @@ function _einsum(ex::Expr, inbound=true, simd=false)
         ex_get_type = :($(esc(:(local T = eltype($(lhs_arr[1]))))))
         ex_create_arrays = :(nothing)
         ex_assignment_op = ex.head
-    end 
+    end
 
     # Copy equation, ex is the Expr we'll build up and return.
-    remove_quote_nodes!(ex)
+    unquote_offsets!(ex)
 
     if length(rhs_idx) > 0
         # There are indices on rhs that do not appear in lhs.
@@ -144,7 +144,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
         # to the left hand side of the equation.
         ex = quote
             $(esc(:(local s = zero(T))))
-            $ex 
+            $ex
             $(esc(lhs_assignment))
         end
     else
@@ -240,14 +240,14 @@ function get_indices!(
 
         # iterate over indices (e.g. i,j,k)
         for (i,arg) in enumerate(ex.args[2:end])
-            
+
             if typeof(arg) == Symbol
                 # e.g. A[i]
                 #    First, push :i to index list
                 #    Second, push size(A,1) to dimension list
                 push!(idx_store,arg)
                 push!(dim_store,:(size($(ex.args[1]),$i)))
-            
+
             elseif typeof(arg) <: Number
                 # e.g. A[5]
                 #    Do nothing, since we don't iterate over this dimension
@@ -299,13 +299,15 @@ function get_indices!(
     idx_store,arr_store,dim_store
 end
 
-function remove_quote_nodes!(ex::Expr)
+
+function unquote_offsets!(ex::Expr, inside_ref=false)
+    inside_ref = inside_ref || ex.head == :ref
     for i = 1:length(ex.args)
-        if typeof(ex.args[i]) == Expr
-            if ex.args[i].head == :quote
+        if isa(ex.args[i], Expr)
+            if ex.args[i].head == :quote && inside_ref
                 ex.args[i] = :($(ex.args[i].args[1]))
             else
-                remove_quote_nodes!(ex.args[i])
+                unquote_offsets!(ex.args[i], inside_ref)
             end
         end
     end
