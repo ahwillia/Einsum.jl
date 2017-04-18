@@ -4,7 +4,7 @@ Einstein summation notation similar to numpy's [`einsum`](http://docs.scipy.org/
 | **PackageEvaluator** | **Package Build** | **Package Status** |
 |:--------------------:|:---------:|:------------------:|
 | [![Einsum](http://pkg.julialang.org/badges/Einsum_0.5.svg)](http://pkg.julialang.org/?pkg=Einsum) | [![Build Status](https://travis-ci.org/ahwillia/Einsum.jl.svg?branch=master)](https://travis-ci.org/ahwillia/Einsum.jl) | [![License](http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](LICENSE.md) | 
-[![Einsum](http://pkg.julialang.org/badges/Einsum_0.4.svg)](http://pkg.julialang.org/?pkg=Einsum) | | [![Project Status: Active - The project has reached a stable, usable state and is being actively developed.](http://www.repostatus.org/badges/latest/active.svg)](http://www.repostatus.org/#active) |
+[![Einsum](http://pkg.julialang.org/badges/Einsum_0.4.svg)](http://pkg.julialang.org/?pkg=Einsum) | | [![Project Status: Inactive - The project has reached a stable, usable state but is no longer being actively developed; support/maintenance will be provided as time allows.](http://www.repostatus.org/badges/latest/inactive.svg)](http://www.repostatus.org/#inactive) - help wanted! |
 
 To install: `Pkg.add("Einsum")`.
 
