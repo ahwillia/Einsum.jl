@@ -83,7 +83,7 @@ end
 
 # Transpose a block matrix
 let
-  z = Any[ rand(2,2) for i=1:2, j=1:2]
+  z = Any[rand(2,2) for i=1:2, j=1:2]
   @einsum t[i,j] := transpose(z[j,i])
   @test isapprox(z[1,1], t[1,1]')
   @test isapprox(z[2,2], t[2,2]')
@@ -95,7 +95,7 @@ end
 let
   A = randn(10,10)
   @einsum B[i,j] := exp(A[i,j])
-  @test isapprox(exp(A),B)
+  @test isapprox(exp.(A),B)
 end
 
 # Example from numpy
