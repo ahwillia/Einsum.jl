@@ -114,7 +114,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
 
         ex_get_type = :($(esc(:(local T = $rhs_type))))
         if length(lhs_dim) > 0
-            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array($rhs_type,$(lhs_dim...))))))
+            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array{$rhs_type}($(lhs_dim...))))))
         else
             ex_create_arrays = :($(esc(:($(lhs_arr[1]) = zero($rhs_type)))))
         end
