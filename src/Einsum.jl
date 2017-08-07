@@ -105,6 +105,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     ex_create_arrays = :(nothing)
     ex_assignment_op = :(=)
 
+    T_var = gensym("T")
     if ex.head == :(:=)
 
         # infer type of allocated array
@@ -112,14 +113,14 @@ function _einsum(ex::Expr, inbound=true, simd=false)
         #    then the following line produces :(promote_type(eltype(A),eltype(B)))
         rhs_type = Expr(:call,:promote_type, [ Expr(:call,:eltype,arr) for arr in rhs_arr ]...)
 
-        ex_get_type = :($(esc(:(local T = $rhs_type))))
+        ex_get_type = :($(esc(:(local $T_var = $rhs_type))))
         if length(lhs_dim) > 0
             ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array{$rhs_type}($(lhs_dim...))))))
         else
             ex_create_arrays = :($(esc(:($(lhs_arr[1]) = zero($rhs_type)))))
         end
     else
-        ex_get_type = :($(esc(:(local T = eltype($(lhs_arr[1]))))))
+        ex_get_type = :($(esc(:(local $T_var = eltype($(lhs_arr[1]))))))
         ex_create_arrays = :(nothing)
         ex_assignment_op = ex.head
     end
@@ -127,23 +128,24 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     # Copy equation, ex is the Expr we'll build up and return.
     unquote_offsets!(ex)
 
+    s_var = gensym("s")
     if length(rhs_idx) > 0
         # There are indices on rhs that do not appear in lhs.
         # We sum over these variables.
 
         # Innermost expression has form s += rhs
-        ex.args[1] = :s
+        ex.args[1] = s_var
         ex.head = :(+=)
         ex = esc(ex)
 
         # Nest loops to iterate over the summed out variables
         ex = nest_loops(ex,rhs_idx,rhs_dim,simd)
 
-        lhs_assignment = Expr(ex_assignment_op, lhs, :s)
-        # Prepend with s = 0, and append with assignment
+        lhs_assignment = Expr(ex_assignment_op, lhs, s_var)
+        # Prepend with $s_var = 0, and append with assignment
         # to the left hand side of the equation.
         ex = quote
-            $(esc(:(local s = zero(T))))
+            $(esc(:(local $(s_var) = zero($T_var))))
             $ex
             $(esc(lhs_assignment))
         end
