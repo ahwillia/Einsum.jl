@@ -167,6 +167,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
                     $ex_get_type
                     $ex
                 end
+                $(esc(lhs_arr[1]))
             end
         end
     else
@@ -177,6 +178,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
                 $ex_get_type
                 $ex
             end
+            $(esc(lhs_arr[1]))
         end
     end
 end
