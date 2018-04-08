@@ -183,39 +183,37 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     end
 end
 
-function nest_loops(ex::Expr,idx::Vector{Symbol},dim::Vector{Expr},simd=false)
-    if simd && !isempty(idx)
-        # innermost index and dimension
-        i = idx[1]
-        d = dim[1]
 
-        # Add @simd to the innermost loop.
-        ex = quote
-            local $(esc(i))
-            @simd for $(esc(i)) = 1:$(esc(d))
-                $(ex)
-            end
-        end
-        start_ = 2
-    else
-        start_ = 1
-    end
+function nest_loops(ex::Expr, idx::Vector{Symbol}, dim::Vector{Expr}, simd::Bool = false)
+    isempty(idx) && return ex
+    
+    # Add @simd to the innermost loop, if required
+    ex = nest_loop(ex, idx[1], dim[1], simd)
 
     # Add remaining for loops
-    for j = start_:length(idx)
-        # index and dimension we are looping over
-        i = idx[j]
-        d = dim[j]
-
-        # add for loop around expression
-        ex = quote
-            local $(esc(i))
-            for $(esc(i)) = 1:$(esc(d))
-                $(ex)
-            end
-        end
+    for j = 2:length(idx)
+        ex = nest_loop(ex, idx[j], dim[j], false)
     end
+    
     return ex
+end
+
+function nest_loop(ex::Expr, ix::Symbol, dim::Expr, simd::Bool)
+    i = esc(ix)
+    d = esc(dim)
+    
+    loop = :(for $i = 1:$d
+                 $ex
+             end)
+    
+    if simd
+        loop = Expr(:macrocall, Symbol("@simd"), loop)
+    end
+    
+    return quote
+        local $i
+        $loop
+    end
 end
 
 
