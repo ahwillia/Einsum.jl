@@ -302,17 +302,19 @@ function get_indices!(
 end
 
 
-function unquote_offsets!(ex::Expr, inside_ref=false)
-    inside_ref = inside_ref || ex.head == :ref
-    for i = 1:length(ex.args)
-        if isa(ex.args[i], Expr)
-            if ex.args[i].head == :quote && inside_ref
-                ex.args[i] = :($(ex.args[i].args[1]))
+function unquote_offsets!(ex::Expr, inside_ref = false)
+    inside_ref |= Meta.isexpr(ex, :ref)
+    
+    for i in eachindex(ex.args)
+        if ex.args[i] isa Expr
+            if Meta.isexpr(ex.args[i], :quote) && inside_ref
+                ex.args[i] = ex.args[i].args[1]
             else
                 unquote_offsets!(ex.args[i], inside_ref)
             end
         end
     end
+    
     return ex
 end
 
