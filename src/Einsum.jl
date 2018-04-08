@@ -229,75 +229,97 @@ function extractindices!(ex::Symbol,
     return idx_store, arr_store, dim_store
 end
 
-@inline extractindices!(ex::Number, args...) = (args...,)
+function extractindices!(ex::Number,
+                         idx_store::Vector{Symbol},
+                         arr_store::Vector{Symbol},
+                         dim_store::Vector{Expr})
+    return idx_store, arr_store, dim_store
+end
+
 
 function extractindices!(ex::Expr,
                          idx_store::Vector{Symbol},
                          arr_store::Vector{Symbol},
                          dim_store::Vector{Expr})
-    if ex.head == :ref
-        # e.g. A[i,j,k] #
-        push!(arr_store, ex.args[1])
-
-        # iterate over indices (e.g. i,j,k)
-        for (i,arg) in enumerate(ex.args[2:end])
-
-            if typeof(arg) == Symbol
-                # e.g. A[i]
-                #    First, push :i to index list
-                #    Second, push size(A,1) to dimension list
-                push!(idx_store,arg)
-                push!(dim_store,:(size($(ex.args[1]),$i)))
-
-            elseif typeof(arg) <: Number
-                # e.g. A[5]
-                #    Do nothing, since we don't iterate over this dimension
-                continue
-            else
-                # e.g. A[i+:offset] or A[i+5]
-                #    arg is an Expr in this case
-                #    We restrict it to be a Symbol (e.g. :i) followed by either
-                #        a number or quoted expression.
-                #    As before, push :i to index list
-                #    Need to add/subtract off the offset to dimension list
-                arg.head == :quote && continue
-                @assert arg.head == :call
-                @assert length(arg.args) == 3
-                op = arg.args[1]
-                sym = arg.args[2]
-                offT = typeof(arg.args[3])
-                if offT <: Integer
-                    off = arg.args[3]::Integer
-                elseif offT <: Expr && arg.args[3].head == :quote
-                    off = arg.args[3].args[1]::Symbol
-                elseif offT == QuoteNode
-                    off = arg.args[3].value::Symbol
-                else
-                    throw(ArgumentError("improper expression inside reference on rhs"))
-                end
-                @assert typeof(sym) == Symbol
-
-                # push :i to indices we're iterating over
-                push!(idx_store, sym)
-
-                # need to invert + or - to determine iteration range
-                if op == :+
-                    push!(dim_store,:( (size($(ex.args[1]),$i) - $off )))
-                elseif op == :-
-                    push!(dim_store,:( (size($(ex.args[1]),$i) + $off )))
-                else
-                    throw(ArgumentError("operations inside ref on rhs are limited to + or -"))
-                end
-            end
+    if ex.head == :ref # e.g. A[i,j,k]
+        arrname = ex.args[1]
+        push!(arr_store, arrname)
+        
+        # ex.args[2:end] are indices (e.g. [i,j,k])
+        for (pos, idx) in enumerate(ex.args[2:end])
+            extractindex!(idx, arrname, pos, idx_store, arr_store, dim_store)
         end
-    else
-        # e.g. 2*A[i,j] or transpose(A[i,j])
-        @assert ex.head == :call
+    elseif ex.head == :call
+        # e.g. 2*A[i,j], transpose(A[i,j]), or A[i] + B[j], so
+        # ex.args[2:end] are the individual tensor expressions (e.g. [A[i], B[j]])
         for arg in ex.args[2:end]
             extractindices!(arg, idx_store, arr_store, dim_store)
         end
+    else
+        throw(ArgumentError("Invalid expression head: `:$(ex.head)`"))
     end
-    idx_store,arr_store,dim_store
+    
+    return idx_store, arr_store, dim_store
+end
+
+function extractindex!(ex::Symbol, arrname, position,
+                       idx_store, arr_store, dim_store)
+    push!(idx_store, ex)
+    push!(dim_store, :(size($arrname, $position)))
+    return idx_store, arr_store, dim_store
+end
+
+# TODO: Union{Number, QuoteNode}?
+function extractindex!(ex::Number, arrname, position,
+                       idx_store, arr_store, dim_store)
+    return idx_store, arr_store, dim_store
+end
+
+function extractindex!(ex::Expr, arrname, position,
+                       idx_store, arr_store, dim_store)
+    # e.g. A[i+:offset] or A[i+5]
+    #    ex is an Expr in this case
+    #    We restrict it to be a Symbol (e.g. :i) followed by either
+    #        a number or quoted expression.
+    #    As before, push :i to index list
+    #    Need to add/subtract off the offset to dimension list
+    
+    if ex.head == :call && length(ex.args) == 3
+        op = ex.args[1]
+        
+        idx = ex.args[2]
+        @assert typeof(idx) == Symbol
+        
+        off_expr = ex.args[3]
+        
+        if off_expr isa Integer
+            off = ex.args[3]::Integer
+        elseif off_expr isa Expr && off_expr.head == :quote
+            off = off_expr.args[1]
+        elseif off_expr isa QuoteNode
+            off = off_expr.value
+        else
+            throw(ArgumentError("Improper expression inside reference on rhs"))
+        end
+        
+        # push :i to indices we're iterating over
+        push!(idx_store, idx)
+        
+        # need to invert + or - to determine iteration range
+        if op == :+
+            push!(dim_store, :(size($arrname, $position) - $off))
+        elseif op == :-
+            push!(dim_store, :(size($arrname, $position) + $off))
+        else
+            throw(ArgumentError("Operations inside ref on rhs are limited to `+` or `-`"))
+        end
+    elseif ex.head == :quote
+        # nothing
+    else
+        throw(ArgumentError("Invalid index expression: `$(ex)`"))
+    end
+
+    return idx_store, arr_store, dim_store
 end
 
 
