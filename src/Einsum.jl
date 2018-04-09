@@ -17,7 +17,7 @@ macro einsum_checkinbounds(ex)
     _einsum(ex, false)
 end
 
-function _einsum(ex::Expr, inbound = true, simd = false)
+function _einsum(ex::Expr, inbounds = true, simd = false)
     # Get left hand side (lhs) and right hand side (rhs) of equation
     lhs = ex.args[1]
     rhs = ex.args[2]
@@ -153,31 +153,21 @@ function _einsum(ex::Expr, inbound = true, simd = false)
     end
 
     # Next loops to iterate over the destination variables
-    ex = nest_loops(ex,lhs_idx,lhs_dim)
+    ex = nest_loops(ex, lhs_idx, lhs_dim)
+
+    if inbounds
+        ex = Expr(:macrocall, Symbol("@inbounds"), ex)
+    end
 
     # Assemble full expression and return
-    if inbound
-        return quote
-            $ex_create_arrays
-            let
-                @inbounds begin
-                    $ex_check_dims
-                    $ex_get_type
-                    $ex
-                end
-                $(esc(lhs_arr[1]))
-            end
+    return quote
+        $ex_create_arrays
+        let
+            $ex_check_dims
+            $ex_get_type
+            $ex
         end
-    else
-        return quote
-            $ex_create_arrays
-            let
-                $ex_check_dims
-                $ex_get_type
-                $ex
-            end
-            $(esc(lhs_arr[1]))
-        end
+        $(esc(lhs_arr[1]))
     end
 end
 
