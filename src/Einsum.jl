@@ -53,7 +53,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
         for j = 1:length(lhs_idx)
             if lhs_idx[j] == rhs_idx[i]
                 dj = lhs_dim[j]
-                if ex.head == :(:=)
+                if Meta.isexpr(ex, :(:=))
                     # ex.head is :=
                     # infer the size of the lhs array
                     lhs_dim[j] = di
@@ -96,7 +96,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
     # Create output array if specified by user
     @gensym T
 
-    if ex.head == :(:=)
+    if Meta.isexpr(ex, :(:=))
         # infer type of allocated array
         #    e.g. rhs_arr = [:A, :B]
         #    then the following line produces :(promote_type(eltype(A), eltype(B)))
@@ -219,7 +219,7 @@ function extractindices!(ex::Expr,
                          idx_store::Vector{Symbol},
                          arr_store::Vector{Symbol},
                          dim_store::Vector{Expr})
-    if ex.head == :ref # e.g. A[i,j,k]
+    if Meta.isexpr(ex, :ref) # e.g. A[i,j,k]
         arrname = ex.args[1]
         push!(arr_store, arrname)
         
@@ -227,7 +227,7 @@ function extractindices!(ex::Expr,
         for (pos, idx) in enumerate(ex.args[2:end])
             extractindex!(idx, arrname, pos, idx_store, arr_store, dim_store)
         end
-    elseif ex.head == :call
+    elseif Meta.isexpr(ex, :call)
         # e.g. 2*A[i,j], transpose(A[i,j]), or A[i] + B[j], so
         # ex.args[2:end] are the individual tensor expressions (e.g. [A[i], B[j]])
         for arg in ex.args[2:end]
@@ -262,7 +262,7 @@ function extractindex!(ex::Expr, arrname, position,
     #    As before, push :i to index list
     #    Need to add/subtract off the offset to dimension list
     
-    if ex.head == :call && length(ex.args) == 3
+    if Meta.isexpr(ex, :call) && length(ex.args) == 3
         op = ex.args[1]
         
         idx = ex.args[2]
@@ -272,7 +272,7 @@ function extractindex!(ex::Expr, arrname, position,
         
         if off_expr isa Integer
             off = ex.args[3]::Integer
-        elseif off_expr isa Expr && off_expr.head == :quote
+        elseif off_expr isa Expr && Meta.isexpr(off_expr, :quote)
             off = off_expr.args[1]
         elseif off_expr isa QuoteNode
             off = off_expr.value
@@ -291,7 +291,7 @@ function extractindex!(ex::Expr, arrname, position,
         else
             throw(ArgumentError("Operations inside ref on rhs are limited to `+` or `-`"))
         end
-    elseif ex.head == :quote
+    elseif Meta.isexpr(ex, :quote)
         # nothing
     else
         throw(ArgumentError("Invalid index expression: `$(ex)`"))
