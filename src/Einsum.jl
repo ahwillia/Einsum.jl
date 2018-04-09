@@ -106,9 +106,9 @@ function _einsum(ex::Expr, inbound = true, simd = false)
 
     if ex.head == :(:=)
         # infer type of allocated array
-        #    e.g. rhs_arr = [:A,:B]
-        #    then the following line produces :(promote_type(eltype(A),eltype(B)))
-        rhs_type = Expr(:call, :promote_type, [Expr(:call, :eltype,arr) for arr in rhs_arr]...)
+        #    e.g. rhs_arr = [:A, :B]
+        #    then the following line produces :(promote_type(eltype(A), eltype(B)))
+        rhs_type = :(promote_type($([:(eltype($arr)) for arr in rhs_arr]...)))
 
         ex_get_type = :($(esc(:(local T = $rhs_type))))
         if length(lhs_dim) > 0
