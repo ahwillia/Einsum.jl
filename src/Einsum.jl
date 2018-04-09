@@ -24,9 +24,9 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
 
     # Get info on the left-hand side
     lhs_idx, lhs_arr, lhs_dim = extractindices(lhs)
-    length(lhs_arr) != 1 && throw(ArgumentError("Left-hand side of ",
-        "equation contains multiple arguments. Only a single referencing ",
-        " expression (e.g. @einsum A[i] = ...) should be used,"))
+    length(lhs_arr) != 1 && throw(ArgumentError(
+        string("Left-hand side of equation contains multiple arguments. Only a single referencing",
+               " expression (e.g. @einsum A[i] = ...) should be used.")))
 
     # Get info on the right-hand side
     rhs_idx, rhs_arr, rhs_dim = extractindices(rhs)
