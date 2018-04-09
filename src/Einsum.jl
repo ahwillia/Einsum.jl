@@ -48,7 +48,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
 
                 # add dimension check ensuring consistency
                 ex_check_dims = quote
-                    @assert $(esc(dj)) == $(esc(di))
+                    @assert $dj == $di
                     $ex_check_dims
                 end
             end
@@ -88,14 +88,14 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
 
                 # add dimension check
                 ex_check_dims = quote
-                    @assert $(esc(dj)) == $(esc(di))
+                    @assert $dj == $di
                     $ex_check_dims
                 end
             end
         end
         if duplicated
-            deleteat!(lhs_idx,i)
-            deleteat!(lhs_dim,i)
+            deleteat!(lhs_idx, i)
+            deleteat!(lhs_dim, i)
         end
     end
 
@@ -103,6 +103,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
     ex_get_type = :(nothing)
     ex_create_arrays = :(nothing)
     ex_assignment_op = :(=)
+    @gensym T
 
     if ex.head == :(:=)
         # infer type of allocated array
@@ -110,14 +111,15 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
         #    then the following line produces :(promote_type(eltype(A), eltype(B)))
         rhs_type = :(promote_type($([:(eltype($arr)) for arr in rhs_arr]...)))
 
-        ex_get_type = :($(esc(:(local T = $rhs_type))))
+        ex_get_type = :(local $T = $rhs_type)
+        
         if length(lhs_dim) > 0
-            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = Array{$rhs_type}($(lhs_dim...))))))
+            ex_create_arrays = :($(lhs_arr[1]) = Array{$rhs_type}($(lhs_dim...)))
         else
-            ex_create_arrays = :($(esc(:($(lhs_arr[1]) = zero($rhs_type)))))
+            ex_create_arrays = :($(lhs_arr[1]) = zero($rhs_type))
         end
     else
-        ex_get_type = :($(esc(:(local T = eltype($(lhs_arr[1]))))))
+        ex_get_type = :(local $T = eltype($(lhs_arr[1])))
         ex_create_arrays = :(nothing)
         ex_assignment_op = ex.head
     end
@@ -130,26 +132,25 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
         # We sum over these variables.
 
         # Innermost expression has form s += rhs
-        ex.args[1] = :s
+        @gensym s
+        ex.args[1] = s
         ex.head = :(+=)
-        ex = esc(ex)
 
         # Nest loops to iterate over the summed out variables
         ex = nest_loops(ex, rhs_idx, rhs_dim, simd)
 
-        lhs_assignment = Expr(ex_assignment_op, lhs, :s)
+        lhs_assignment = Expr(ex_assignment_op, lhs, s)
         # Prepend with s = 0, and append with assignment
         # to the left hand side of the equation.
         ex = quote
-            $(esc(:(local s = zero(T))))
+            local $s = zero($T)
             $ex
-            $(esc(lhs_assignment))
+            $lhs_assignment
         end
     else
         # We do not sum over any indices
         # ex.head = :(=)
         ex.head = ex_assignment_op
-        ex = :($(esc(ex)))
     end
 
     # Next loops to iterate over the destination variables
@@ -159,16 +160,17 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
         ex = Expr(:macrocall, Symbol("@inbounds"), ex)
     end
 
-    # Assemble full expression and return
-    return quote
+    full_expression = quote
         $ex_create_arrays
         let
             $ex_check_dims
             $ex_get_type
             $ex
         end
-        $(esc(lhs_arr[1]))
+        $(lhs_arr[1])
     end
+
+    return esc(full_expression)
 end
 
 
@@ -187,10 +189,7 @@ function nest_loops(ex::Expr, idx::Vector{Symbol}, dim::Vector{Expr}, simd::Bool
 end
 
 function nest_loop(ex::Expr, ix::Symbol, dim::Expr, simd::Bool)
-    i = esc(ix)
-    d = esc(dim)
-    
-    loop = :(for $i = 1:$d
+    loop = :(for $ix = 1:$dim
                  $ex
              end)
     
@@ -199,7 +198,7 @@ function nest_loop(ex::Expr, ix::Symbol, dim::Expr, simd::Bool)
     end
     
     return quote
-        local $i
+        local $ix
         $loop
     end
 end
