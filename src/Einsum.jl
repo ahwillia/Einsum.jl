@@ -34,7 +34,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
     # remove duplicate indices on left-hand and right-hand side
     # and ensure that the array sizes match along these dimensions
     ###########################################################
-    ex_check_dims = :()
+    ex_check_dims = Expr[]
 
     # remove duplicate indices on the right hand side
     for i in reverse(1:length(rhs_idx))
@@ -47,10 +47,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
                 dj = rhs_dim[j]
 
                 # add dimension check ensuring consistency
-                ex_check_dims = quote
-                    @assert $dj == $di
-                    $ex_check_dims
-                end
+                push!(ex_check_dims, :(@assert $dj == $di))
             end
         end
         for j = 1:length(lhs_idx)
@@ -87,10 +84,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
                 dj = lhs_dim[j]
 
                 # add dimension check
-                ex_check_dims = quote
-                    @assert $dj == $di
-                    $ex_check_dims
-                end
+                push!(ex_check_dims, :(@assert $dj == $di))
             end
         end
         if duplicated
@@ -163,7 +157,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
     full_expression = quote
         $ex_create_arrays
         let
-            $ex_check_dims
+            $(ex_check_dims...)
             $ex_get_type
             $ex
         end
