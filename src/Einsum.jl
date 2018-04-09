@@ -10,27 +10,26 @@ macro einsum(ex)
 end
 
 macro einsimd(ex)
-    _einsum(ex,true,true)
+    _einsum(ex, true, true)
 end
 
 macro einsum_checkinbounds(ex)
-    _einsum(ex,false)
+    _einsum(ex, false)
 end
 
-function _einsum(ex::Expr, inbound=true, simd=false)
-
+function _einsum(ex::Expr, inbound = true, simd = false)
     # Get left hand side (lhs) and right hand side (rhs) of equation
     lhs = ex.args[1]
     rhs = ex.args[2]
 
     # Get info on the left-hand side
-    lhs_idx,lhs_arr,lhs_dim = extractindices(lhs)
+    lhs_idx, lhs_arr, lhs_dim = extractindices(lhs)
     length(lhs_arr) != 1 && throw(ArgumentError("Left-hand side of ",
         "equation contains multiple arguments. Only a single referencing ",
         " expression (e.g. @einsum A[i] = ...) should be used,"))
 
     # Get info on the right-hand side
-    rhs_idx,rhs_arr,rhs_dim = extractindices(rhs)
+    rhs_idx, rhs_arr, rhs_dim = extractindices(rhs)
 
     # remove duplicate indices on left-hand and right-hand side
     # and ensure that the array sizes match along these dimensions
@@ -41,7 +40,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     for i in reverse(1:length(rhs_idx))
         duplicated = false
         di = rhs_dim[i]
-        for j = 1:(i-1)
+        for j = 1:(i - 1)
             if rhs_idx[j] == rhs_idx[i]
                 # found a duplicate
                 duplicated = true
@@ -63,14 +62,14 @@ function _einsum(ex::Expr, inbound=true, simd=false)
                     lhs_dim[j] = di
                 else
                     # ex.head is =, +=, *=, etc.
-                    lhs_dim[j] = :(min($dj,$di))
+                    lhs_dim[j] = :(min($dj, $di))
                 end
                 duplicated = true
             end
         end
         if duplicated
-            deleteat!(rhs_idx,i)
-            deleteat!(rhs_dim,i)
+            deleteat!(rhs_idx, i)
+            deleteat!(rhs_dim, i)
         end
     end
 
@@ -81,7 +80,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
 
         # don't need to check rhs, already done above
 
-        for j = 1:(i-1)
+        for j = 1:(i - 1)
             if lhs_idx[j] == lhs_idx[i]
                 # found a duplicate
                 duplicated = true
@@ -106,11 +105,10 @@ function _einsum(ex::Expr, inbound=true, simd=false)
     ex_assignment_op = :(=)
 
     if ex.head == :(:=)
-
         # infer type of allocated array
         #    e.g. rhs_arr = [:A,:B]
         #    then the following line produces :(promote_type(eltype(A),eltype(B)))
-        rhs_type = Expr(:call,:promote_type, [ Expr(:call,:eltype,arr) for arr in rhs_arr ]...)
+        rhs_type = Expr(:call, :promote_type, [Expr(:call, :eltype,arr) for arr in rhs_arr]...)
 
         ex_get_type = :($(esc(:(local T = $rhs_type))))
         if length(lhs_dim) > 0
@@ -137,7 +135,7 @@ function _einsum(ex::Expr, inbound=true, simd=false)
         ex = esc(ex)
 
         # Nest loops to iterate over the summed out variables
-        ex = nest_loops(ex,rhs_idx,rhs_dim,simd)
+        ex = nest_loops(ex, rhs_idx, rhs_dim, simd)
 
         lhs_assignment = Expr(ex_assignment_op, lhs, :s)
         # Prepend with s = 0, and append with assignment
