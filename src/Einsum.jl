@@ -94,9 +94,6 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
     end
 
     # Create output array if specified by user
-    ex_get_type = :(nothing)
-    ex_create_arrays = :(nothing)
-    ex_assignment_op = :(=)
     @gensym T
 
     if ex.head == :(:=)
@@ -107,11 +104,13 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
 
         ex_get_type = :(local $T = $rhs_type)
         
-        if length(lhs_dim) > 0
-            ex_create_arrays = :($(lhs_arr[1]) = Array{$rhs_type}($(lhs_dim...)))
+        ex_create_arrays = if length(lhs_dim) > 0
+            :($(lhs_arr[1]) = Array{$rhs_type}($(lhs_dim...)))
         else
-            ex_create_arrays = :($(lhs_arr[1]) = zero($rhs_type))
+            :($(lhs_arr[1]) = zero($rhs_type))
         end
+
+        ex_assignment_op = :(=)
     else
         ex_get_type = :(local $T = eltype($(lhs_arr[1])))
         ex_create_arrays = :(nothing)
@@ -132,10 +131,10 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
 
         # Nest loops to iterate over the summed out variables
         ex = nest_loops(ex, rhs_idx, rhs_dim, simd)
-
-        lhs_assignment = Expr(ex_assignment_op, lhs, s)
+        
         # Prepend with s = 0, and append with assignment
         # to the left hand side of the equation.
+        lhs_assignment = Expr(ex_assignment_op, lhs, s)
         ex = quote
             local $s = zero($T)
             $ex
