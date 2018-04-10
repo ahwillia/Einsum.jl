@@ -150,12 +150,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
     ex = nest_loops(ex, lhs_idx, lhs_dim)
 
     if inbounds
-        # ex = Expr(:macrocall, Symbol("@inbounds"), ex)
-        ex = quote
-            $(Expr(:inbounds, true))
-            $ex
-            $(Expr(:inbounds, :pop))
-        end
+        ex = :(@inbounds $ex)
     end
 
     full_expression = quote
@@ -192,7 +187,7 @@ function nest_loop(ex::Expr, ix::Symbol, dim::Expr, simd::Bool)
              end)
     
     if simd
-        loop = Expr(:macrocall, Symbol("@simd"), loop)
+        loop = :(@simd $loop)
     end
     
     return quote
