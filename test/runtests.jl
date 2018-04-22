@@ -63,6 +63,15 @@ let
   end
 end
 
+# From #21: local `T` does not interfer with internal T
+let
+    function test(x::Vector{T}, y::Vector{T}) where T
+        @einsum z := x[i]*y[i]
+        return z
+    end
+    @test_nowarn test(rand(3), rand(3))
+end
+
 # At one point this threw an error because the lhs
 # had no indices/arguments
 let
