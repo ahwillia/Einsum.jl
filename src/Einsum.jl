@@ -140,14 +140,17 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
             $ex
             $lhs_assignment
         end
+
+        applied_simd = true
     else
         # We do not sum over any indices
         # ex.head = :(=)
         ex.head = ex_assignment_op
+        applied_simd = false
     end
 
     # Next loops to iterate over the destination variables
-    ex = nest_loops(ex, lhs_idx, lhs_dim)
+    ex = nest_loops(ex, lhs_idx, lhs_dim, !applied_simd && simd)
 
     if inbounds
         ex = :(@inbounds $ex)

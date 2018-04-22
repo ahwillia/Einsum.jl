@@ -87,7 +87,9 @@ let
   x = randn(10)
   y = randn(10)
   @einsum k[i] := x[i]*y[i]
+  @einsimd k2[i] := x[i]*y[i]
   @test isapprox(k,x.*y)
+  @test isapprox(k2,x.*y)
 end
 
 # Transpose a block matrix
