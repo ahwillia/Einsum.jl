@@ -58,7 +58,7 @@ end
 
 In reality, this code will be preceded by the the neccessary bounds checks and allocations, and take care to use the right types and keep hygenic.
 
-You can also use updating assignment operators for preallocated arrays.  For example, `@einsum A[i,j,k] *= X[i,r]*Y[j,r]*Z[k,r]` will produce something like
+You can also use updating assignment operators for preallocated arrays.  E.g., `@einsum A[i,j,k] *= X[i,r]*Y[j,r]*Z[k,r]` will produce something like
 
 ```julia
 for k = 1:size(A,3)
@@ -73,6 +73,27 @@ for k = 1:size(A,3)
     end
 end
 ```
+
+### `@einsimd`
+
+This is a variant of `@einsum` which will put `@simd` in front of the innermost loop; e.g., `@einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]` will result approximately in
+
+```julia
+for k = 1:size(A,3)
+    for j = 1:size(A,2)
+        for i = 1:size(A,1)
+            s = 0
+            @simd for r = 1:size(X,2)
+                s += X[i,r] * Y[j,r] * Z[k,r]
+            end
+            A[i,j,k] = s
+        end
+    end
+end
+```
+
+Whether this is a good idea or not you have to decide and benchmark for yourself in every specific case.  `@simd` makes sense for certain kinds of operations; make yourself familiar with [its documentation](https://docs.julialang.org/en/stable/manual/performance-tips/#Performance-Annotations-1) and the inner workings of it [in general](https://software.intel.com/en-us/articles/vectorization-in-julia).
+
 
 ### Other functionality
 
