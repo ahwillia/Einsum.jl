@@ -120,6 +120,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
     # Copy equation, ex is the Expr we'll build up and return.
     unquote_offsets!(ex)
 
+    # Next loops to iterate over the destination variables
     if length(rhs_idx) > 0
         # There are indices on rhs that do not appear in lhs.
         # We sum over these variables.
@@ -141,16 +142,13 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
             $lhs_assignment
         end
 
-        applied_simd = true
+        ex = nest_loops(ex, lhs_idx, lhs_dim, false)
     else
         # We do not sum over any indices
         # ex.head = :(=)
         ex.head = ex_assignment_op
-        applied_simd = false
+        ex = nest_loops(ex, lhs_idx, lhs_dim, simd)
     end
-
-    # Next loops to iterate over the destination variables
-    ex = nest_loops(ex, lhs_idx, lhs_dim, !applied_simd && simd)
 
     if inbounds
         ex = :(@inbounds $ex)
@@ -170,7 +168,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
 end
 
 
-function nest_loops(ex::Expr, idx::Vector{Symbol}, dim::Vector{Expr}, simd::Bool = false)
+function nest_loops(ex::Expr, idx::Vector{Symbol}, dim::Vector{Expr}, simd::Bool)
     isempty(idx) && return ex
     
     # Add @simd to the innermost loop, if required
