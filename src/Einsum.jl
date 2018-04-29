@@ -136,6 +136,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
         # Prepend with s = 0, and append with assignment
         # to the left hand side of the equation.
         lhs_assignment = Expr(ex_assignment_op, lhs, s)
+        
         ex = quote
             local $s = zero($T)
             $ex
@@ -248,7 +249,6 @@ function extractindex!(ex::Symbol, arrname, position,
     return idx_store, arr_store, dim_store
 end
 
-# TODO: Union{Number, QuoteNode}?
 function extractindex!(ex::Number, arrname, position,
                        idx_store, arr_store, dim_store)
     return idx_store, arr_store, dim_store
