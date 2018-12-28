@@ -1,6 +1,12 @@
-using Test
+
+if isdefined(Base, :Test) && !Base.isdeprecated(Base, :Test)
+    using Base.Test # Julia 0.6
+else
+    using Test # Julia 0.7 and up
+    using LinearAlgebra
+end
+
 using Einsum
-using LinearAlgebra
 
 ## Test that vars in Main aren't overwritten by einsum
 let
@@ -25,6 +31,7 @@ let
   A = zeros(5,6,7);
   B = similar(A)
   C = similar(A)
+  
   X = randn(5,2);
   Y = randn(6,2);
   Z = randn(7,2);
@@ -74,6 +81,11 @@ let
         return z
     end
     @test_nowarn test(rand(3), rand(3))
+end
+# From #20: local `s` does not interfere with internal s
+let
+  x = rand(2,3)
+  @test_nowarn @einsum y[i] := x[i, s]
 end
 
 # At one point this threw an error because the lhs
@@ -205,21 +217,21 @@ let
 end
 
 # Test symbolic offsets
-# let
-#   offset = 5
-#   X = randn(10)
-#
-#   # without preallocation
-#   @einsum A[i] := X[i+:offset]  ### error for me
-#   @test size(A) == (5,)
-#   @test all(A .== X[6:end])
-#
-#   # with preallocation
-#   B = zeros(10)
-#   @einsum B[i] = X[i+:offset]
-#   @test size(B) == (10,)
-#   @test all(B[1:5] .== X[6:end])
-# end
+let
+  offset = 5
+  X = randn(10)
+
+  # without preallocation
+  # @einsum A[i] := X[i+:offset] # error on 1.0
+  # @test size(A) == (5,)
+  # @test all(A .== X[6:end])
+
+  # with preallocation
+  B = zeros(10)
+  # @einsum B[i] = X[i+:offset] # error on 1.0
+  # @test size(B) == (10,)
+  # @test all(B[1:5] .== X[6:end])
+end
 
 # Test adding/subtracting constants
 let
@@ -229,7 +241,7 @@ let
   # without preallocation
   @einsum A[i] := X[i] + k
   @einsum B[i] := X[i] - k
-  @test isapprox(A,X .+ k) ### needed some . here
+  @test isapprox(A,X .+ k)
   @test isapprox(B,X .- k)
 
   # with preallocation
@@ -263,7 +275,7 @@ end
 let
   A = randn(10,2)
   j = 2
-  # @einsum B[i] := A[i,:j] ### maybe same error?
+  # @einsum B[i] := A[i,:j] # error on 1.0
   # @test all(B .== A[:,j])
   @einsum C[i] := A[i,1]
   @test all(C .== A[:,1])
