@@ -3,21 +3,31 @@ isdefined(Base, :__precompile__) && __precompile__()
 module Einsum
 
 using Base.Cartesian
-export @einsum, @einsimd
+using Compat # for Array{}(undef,...)
+
+export @einsum, @einsimd, @vielsum, @vielsimd
 
 macro einsum(ex)
-    _einsum(ex)
+    _einsum(ex) # true, false, false
 end
 
 macro einsimd(ex)
-    _einsum(ex, true, true)
+    _einsum(ex, true, true) # false
+end
+
+macro vielsum(ex)
+    _einsum(ex, true, false, true)
+end
+
+macro vielsimd(ex)
+    _einsum(ex, true, true, true)
 end
 
 macro einsum_checkinbounds(ex)
-    _einsum(ex, false)
+    _einsum(ex, false) # false, false
 end
 
-function _einsum(ex::Expr, inbounds = true, simd = false)
+function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
     # Get left hand side (lhs) and right hand side (rhs) of equation
     lhs = ex.args[1]
     rhs = ex.args[2]
@@ -103,7 +113,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
         rhs_type = :(promote_type($([:(eltype($arr)) for arr in rhs_arr]...)))
 
         ex_get_type = :(local $T = $rhs_type)
-        
+
         ex_create_arrays = if length(lhs_dim) > 0
             :($(lhs_arr[1]) = Array{$rhs_type}(undef, $(lhs_dim...)))
         else
@@ -117,6 +127,20 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
         ex_assignment_op = ex.head
     end
 
+    if threads && !Meta.isexpr(ex, :(=)) && !Meta.isexpr(ex, :(:=))
+        throw(ArgumentError(
+            string("Threaded @vielsum can only assign with = or := right now. ",
+                   "To use ",ex.head," try @einsum instead.")))
+        # could allow :(+=) by simply then removing $lhs = zero($T) line
+    end
+
+    if threads && length(lhs_idx)==0
+        throw(ArgumentError(
+            string("Threaded @vielsum needs can't assign to a scalar LHS. ",
+                   "Try @einsum instead.")))
+        # this won't actually cause problems, but won't use threads
+    end
+
     # Copy equation, ex is the Expr we'll build up and return.
     unquote_offsets!(ex)
 
@@ -125,30 +149,45 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
         # There are indices on rhs that do not appear in lhs.
         # We sum over these variables.
 
-        # Innermost expression has form s += rhs
-        @gensym s
-        ex.args[1] = s
-        ex.head = :(+=)
+        if !threads # then use temporaries to write into, as before
 
-        # Nest loops to iterate over the summed out variables
-        ex = nest_loops(ex, rhs_idx, rhs_dim, simd)
-        
-        # Prepend with s = 0, and append with assignment
-        # to the left hand side of the equation.
-        lhs_assignment = Expr(ex_assignment_op, lhs, s)
-        
-        ex = quote
-            local $s = zero($T)
-            $ex
-            $lhs_assignment
+            # Innermost expression has form s += rhs
+            @gensym s
+            ex.args[1] = s
+            ex.head = :(+=)
+
+            # Nest loops to iterate over the summed out variables
+            ex = nest_loops(ex, rhs_idx, rhs_dim, simd, false)
+
+            # Prepend with s = 0, and append with assignment
+            # to the left hand side of the equation.
+            lhs_assignment = Expr(ex_assignment_op, lhs, s)
+
+            ex = quote
+                local $s = zero($T)
+                $ex
+                $lhs_assignment
+            end
+
+        else # we are threading, and thus should write directly to lhs array
+
+            ex.args[1] = lhs
+            ex.head = :(+=)
+
+            ex = nest_loops(ex, rhs_idx, rhs_dim, simd, false)
+
+            ex = quote
+                $lhs = zero($T)
+                $ex
+            end
         end
 
-        ex = nest_loops(ex, lhs_idx, lhs_dim, false)
+        # Now loop over indices appearing on lhs, if any
+        ex = nest_loops(ex, lhs_idx, lhs_dim, false, threads)
     else
-        # We do not sum over any indices
-        # ex.head = :(=)
+        # We do not sum over any indices, only loop over lhs
         ex.head = ex_assignment_op
-        ex = nest_loops(ex, lhs_idx, lhs_dim, simd)
+        ex = nest_loops(ex, lhs_idx, lhs_dim, simd, threads)
     end
 
     if inbounds
@@ -169,29 +208,32 @@ function _einsum(ex::Expr, inbounds = true, simd = false)
 end
 
 
-function nest_loops(ex::Expr, idx::Vector{Symbol}, dim::Vector{Expr}, simd::Bool)
+function nest_loops(ex::Expr, idx::Vector{Symbol}, dim::Vector{Expr}, simd::Bool, threads::Bool)
     isempty(idx) && return ex
-    
+
     # Add @simd to the innermost loop, if required
-    ex = nest_loop(ex, idx[1], dim[1], simd)
+    # and @threads to the outermost loop
+    ex = nest_loop(ex, idx[1], dim[1], simd, threads && 1==length(idx))
 
     # Add remaining for loops
     for j = 2:length(idx)
-        ex = nest_loop(ex, idx[j], dim[j], false)
+        ex = nest_loop(ex, idx[j], dim[j], false, threads && j==length(idx))
     end
-    
+
     return ex
 end
 
-function nest_loop(ex::Expr, ix::Symbol, dim::Expr, simd::Bool)
+function nest_loop(ex::Expr, ix::Symbol, dim::Expr, simd::Bool, threads::Bool)
     loop = :(for $ix = 1:$dim
                  $ex
              end)
-    
-    if simd
-        loop = :(@simd $loop)
+
+    if threads
+      loop = :(Threads.@threads $loop)
+    elseif simd
+      loop = :(@simd $loop)
     end
-    
+
     return quote
         local $ix
         $loop
@@ -224,7 +266,7 @@ function extractindices!(ex::Expr,
     if Meta.isexpr(ex, :ref) # e.g. A[i,j,k]
         arrname = ex.args[1]
         push!(arr_store, arrname)
-        
+
         # ex.args[2:end] are indices (e.g. [i,j,k])
         for (pos, idx) in enumerate(ex.args[2:end])
             extractindex!(idx, arrname, pos, idx_store, arr_store, dim_store)
@@ -238,7 +280,7 @@ function extractindices!(ex::Expr,
     else
         throw(ArgumentError("Invalid expression head: `:$(ex.head)`"))
     end
-    
+
     return idx_store, arr_store, dim_store
 end
 
@@ -262,15 +304,15 @@ function extractindex!(ex::Expr, arrname, position,
     #        a number or quoted expression.
     #    As before, push :i to index list
     #    Need to add/subtract off the offset to dimension list
-    
+
     if Meta.isexpr(ex, :call) && length(ex.args) == 3
         op = ex.args[1]
-        
+
         idx = ex.args[2]
         @assert typeof(idx) == Symbol
-        
+
         off_expr = ex.args[3]
-        
+
         if off_expr isa Integer
             off = ex.args[3]::Integer
         elseif off_expr isa Expr && Meta.isexpr(off_expr, :quote)
@@ -280,10 +322,10 @@ function extractindex!(ex::Expr, arrname, position,
         else
             throw(ArgumentError("Improper expression inside reference on rhs"))
         end
-        
+
         # push :i to indices we're iterating over
         push!(idx_store, idx)
-        
+
         # need to invert + or - to determine iteration range
         if op == :+
             push!(dim_store, :(size($arrname, $position) - $off))
@@ -304,17 +346,16 @@ end
 
 function unquote_offsets!(ex::Expr, inside_ref = false)
     inside_ref |= Meta.isexpr(ex, :ref)
-    
     for i in eachindex(ex.args)
         if ex.args[i] isa Expr
-            if Meta.isexpr(ex.args[i], :quote) && inside_ref
+            if Meta.isexpr(ex.args[i], :quote) && inside_ref # never seems to get here
                 ex.args[i] = ex.args[i].args[1]
             else
                 unquote_offsets!(ex.args[i], inside_ref)
             end
         end
     end
-    
+
     return ex
 end
 
