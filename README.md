@@ -34,7 +34,7 @@ Z = randn(7,2)
 
 ### What happens under the hood
 
-To see exactly what is generated, use [`@macroexpand`](https://docs.julialang.org/en/stable/stdlib/base/#Base.@macroexpand) (or `@expand` from [MacroTools.jl](https://github.com/MikeInnes/MacroTools.jl):
+To see exactly what is generated, use [`@macroexpand`](https://docs.julialang.org/en/stable/stdlib/base/#Base.@macroexpand) (or `@expand` from [MacroTools.jl](https://github.com/MikeInnes/MacroTools.jl)):
 
 ```julia
 @macroexpand @einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]
@@ -46,7 +46,7 @@ The `@einsum` macro automatically generates code that looks much like the follow
 for k = 1:size(A,3)
     for j = 1:size(A,2)
         for i = 1:size(A,1)
-            s = 0
+            s = 0.0
             for r = 1:size(X,2)
                 s += X[i,r] * Y[j,r] * Z[k,r]
             end
@@ -64,7 +64,7 @@ You can also use updating assignment operators for preallocated arrays.  E.g., `
 for k = 1:size(A,3)
     for j = 1:size(A,2)
         for i = 1:size(A,1)
-            s = 0
+            s = 0.0
             for r = 1:size(X,2)
                 s += X[i,r] * Y[j,r] * Z[k,r]
             end
@@ -82,7 +82,7 @@ This variant of `@einsum` will run multi-threaded on the outermost loop. For thi
 Threads.@threads for k = 1:size(A,3)
     for j = 1:size(A,2)
         for i = 1:size(A,1)
-            A[i,j,k] = 0
+            A[i,j,k] = 0.0
             for r = 1:size(X,2)
                 A[i,j,k] += X[i,r] * Y[j,r] * Z[k,r]
             end
@@ -91,19 +91,19 @@ Threads.@threads for k = 1:size(A,3)
 end
 ```
 
-For this to be useful, you will need to set an environment variable before starting Julia, such as `export JULIA_NUM_THREADS=4`. See [the manual](https://docs.julialang.org/en/stable/manual/parallel-computing/#Multi-Threading-(Experimental)-1) for details, and note that this is somewhat experimental. This will not always be faster, especially for small arrays, as there is some overhead to dividing up the work.
+For this to be useful, you will need to set an environment variable before starting Julia, such as `export JULIA_NUM_THREADS=4`. See [the manual](https://docs.julialang.org/en/latest/manual/parallel-computing/#Multi-Threading-(Experimental)-1) for details, and note that this is somewhat experimental. This will not always be faster, especially for small arrays, as there is some overhead to dividing up the work.
 
-At present you cannot use updating assignment operators like `+=` with this macro, only `=` or `:=`. And you cannot assign to a scalar left-hand-side, only an array.
+At present you cannot use updating assignment operators like `+=` with this macro (only `=` or `:=`) and you cannot assign to a scalar left-hand-side (only an array). These limitations prevent different threads from writing to the same memory at the same time.
 
 ### `@einsimd`
 
-This is a variant of `@einsum` which will put `@simd` in front of the innermost loop; e.g., `@einsum A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]` will result approximately in
+This is a variant of `@einsum` which will put `@simd` in front of the innermost loop, encouraging Julia's compiler vectorize this loop (although it may do so already). For example `@einsimd A[i,j,k] = X[i,r]*Y[j,r]*Z[k,r]` will result in approximately
 
 ```julia
-for k = 1:size(A,3)
+@inbounds for k = 1:size(A,3)
     for j = 1:size(A,2)
         for i = 1:size(A,1)
-            s = 0
+            s = 0.0
             @simd for r = 1:size(X,2)
                 s += X[i,r] * Y[j,r] * Z[k,r]
             end
@@ -113,7 +113,7 @@ for k = 1:size(A,3)
 end
 ```
 
-Whether this is a good idea or not you have to decide and benchmark for yourself in every specific case.  `@simd` makes sense for certain kinds of operations; make yourself familiar with [its documentation](https://docs.julialang.org/en/stable/manual/performance-tips/#Performance-Annotations-1) and the inner workings of it [in general](https://software.intel.com/en-us/articles/vectorization-in-julia).
+Whether this is a good idea or not you have to decide and benchmark for yourself in every specific case.  `@simd` makes sense for certain kinds of operations; make yourself familiar with [its documentation](https://docs.julialang.org/en/latest/base/base/#Base.SimdLoop.@simd) and the inner workings of it [in general](https://software.intel.com/en-us/articles/vectorization-in-julia).
 
 
 ### Other functionality
@@ -135,18 +135,25 @@ for j = 1:size(z,1)
 end
 ```
 
-This will work as long the function calls are outside the array names.
+This will work as long the function calls are outside the array names. Again, you can use [`@macroexpand`](https://docs.julialang.org/en/stable/stdlib/base/#Base.@macroexpand) to see the exact code that is generated.
 
-The output need not be an array. But note that on Julia 0.7 and 1.0, the rules for evaluating in global scope (for example at the REPL prompt) are a little different -- see [this package](https://github.com/stevengj/SoftGlobalScope.jl) for instance. To get the same behavior as you would have inside a function, you can do this:  
+The output need not be an array. But note that on Julia 0.7 and 1.0, the rules for evaluating in global scope (for example at the REPL prompt) are a little different -- see [this package](https://github.com/stevengj/SoftGlobalScope.jl) for instance (which is loaded in [IJulia](https://github.com/JuliaLang/IJulia.jl) notebooks). To get the same behavior as you would have inside a function, you use a `let` block:  
 
 ```julia
+p = rand(5); p .= p ./ sum(p)
 let
     global S
     @einsum S := - p[i] * log(p[i])
 end
 ```
 
-Again, you can use [`@macroexpand`](https://docs.julialang.org/en/stable/stdlib/base/#Base.@macroexpand) to see the exact code that is generated.
+Or perhaps clearer, explicitly define a function:
+
+```julia
+m(pq, p, q) = @einsum I := pq[i,j] * log(pq[i,j] / p[i] / q[j])
+
+m(rand(5,10), rand(5), rand(10))
+```
 
 
 ### Related Packages:
