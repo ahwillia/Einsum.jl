@@ -3,6 +3,8 @@ isdefined(Base, :__precompile__) && __precompile__()
 module Einsum
 
 using Base.Cartesian
+using Compat # for Array{}(undef,...)
+
 export @einsum, @einsimd, @vielsum, @vielsimd
 
 macro einsum(ex)

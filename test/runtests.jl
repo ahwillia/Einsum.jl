@@ -1,10 +1,7 @@
 
-if isdefined(Base, :Test) && !Base.isdeprecated(Base, :Test)
-    using Base.Test # Julia 0.6
-else
-    using Test # Julia 0.7 and up
-    using LinearAlgebra
-end
+using Compat
+using Compat.Test # Base.Test on 0.6, and Test on 0.7
+using Compat.LinearAlgebra # dot
 
 using Einsum
 
@@ -31,7 +28,7 @@ let
   A = zeros(5,6,7);
   B = similar(A)
   C = similar(A)
-  
+
   X = randn(5,2);
   Y = randn(6,2);
   Z = randn(7,2);
