@@ -121,9 +121,9 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
         type_definition = :(local $T = $rhs_type)
 
         output_definition = if length(lhs_axis_exprs) > 0
-            :($(lhs_arrays[1]) = Array{$rhs_type}(undef, $(lhs_axis_exprs...)))
+            :($(lhs_arrays[1]) = Array{$T}(undef, $(lhs_axis_exprs...)))
         else
-            :($(lhs_arrays[1]) = zero($rhs_type))
+            :($(lhs_arrays[1]) = zero($T))
         end
 
         assignment_op = :(=)
@@ -201,10 +201,10 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
     end
 
     full_expression = quote
+        $type_definition
         $output_definition
+        $(dimension_checks...)
         let
-            $(dimension_checks...)
-            $type_definition
             $expr
         end
         $(lhs_arrays[1])
