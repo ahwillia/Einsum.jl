@@ -42,6 +42,8 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
 
     # Get info on the right-hand side
     rhs_arrays, rhs_indices, rhs_axis_exprs = extractindices(rhs)
+    
+    check_index_occurrence(lhs_indices, rhs_indices)
 
     # remove duplicate indices on left-hand and right-hand side
     # and ensure that the array sizes match along these dimensions
@@ -211,6 +213,23 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
     end
 
     return esc(full_expression)
+end
+
+function check_index_occurrence(lhs_indices, rhs_indices)
+    if lhs_indices ⊈ rhs_indices
+        missing_indices = setdiff(lhs_indices, rhs_indices)
+
+        if length(missing_indices) == 1
+            missing_string = "\"$(missing_indices[1])\""
+            throw(ArgumentError(string(
+                "Index ", missing_string, " is occuring only on left side")))
+        else
+            missing_string = join(("\"$ix\"" for ix in missing_indices),
+                                  ", ", " and ")
+            throw(ArgumentError(string(
+                "Indices ", missing_string, " are occuring only on left side")))
+        end
+    end
 end
 
 
