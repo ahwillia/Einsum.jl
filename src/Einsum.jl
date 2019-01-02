@@ -2,10 +2,11 @@ isdefined(Base, :__precompile__) && __precompile__()
 
 module Einsum
 
-using Base.Cartesian
+
 using Compat # for Array{}(undef,...)
 
 export @einsum, @einsimd, @vielsum, @vielsimd
+
 
 macro einsum(ex)
     _einsum(ex) # true, false, false
@@ -27,7 +28,8 @@ macro einsum_checkinbounds(ex)
     _einsum(ex, false) # false, false
 end
 
-function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
+
+function _einsum(ex::Expr, inbounds = true, simd = false, threads = false)
     # Get left hand side (lhs) and right hand side (rhs) of equation
     lhs = ex.args[1]
     rhs = ex.args[2]
@@ -35,8 +37,8 @@ function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
     # Get info on the left-hand side
     lhs_idx, lhs_arr, lhs_dim = extractindices(lhs)
     length(lhs_arr) != 1 && throw(ArgumentError(
-        string("Left-hand side of equation contains multiple arguments. Only a single referencing",
-               " expression (e.g. @einsum A[i] = ...) should be used.")))
+        "Left-hand side of equation contains multiple arguments. Only a single referencing ",
+        " expression (e.g. @einsum A[i] = ...) should be used."))
 
     # Get info on the right-hand side
     rhs_idx, rhs_arr, rhs_dim = extractindices(rhs)
@@ -47,9 +49,10 @@ function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
     ex_check_dims = Expr[]
 
     # remove duplicate indices on the right hand side
-    for i in reverse(1:length(rhs_idx))
+    for i in reverse(eachindex(rhs_idx))
         duplicated = false
         di = rhs_dim[i]
+        
         for j = 1:(i - 1)
             if rhs_idx[j] == rhs_idx[i]
                 # found a duplicate
@@ -60,7 +63,8 @@ function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
                 push!(ex_check_dims, :(@assert $dj == $di))
             end
         end
-        for j = 1:length(lhs_idx)
+        
+        for j = eachindex(lhs_idx)
             if lhs_idx[j] == rhs_idx[i]
                 dj = lhs_dim[j]
                 if Meta.isexpr(ex, :(:=))
@@ -74,6 +78,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
                 duplicated = true
             end
         end
+        
         if duplicated
             deleteat!(rhs_idx, i)
             deleteat!(rhs_dim, i)
@@ -81,7 +86,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
     end
 
     # remove duplicate indices on the left hand side
-    for i in reverse(1:length(lhs_idx))
+    for i in reverse(eachindex(lhs_idx))
         duplicated = false
         di = lhs_dim[i]
 
@@ -97,6 +102,7 @@ function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
                 push!(ex_check_dims, :(@assert $dj == $di))
             end
         end
+        
         if duplicated
             deleteat!(lhs_idx, i)
             deleteat!(lhs_dim, i)
@@ -130,15 +136,15 @@ function _einsum(ex::Expr, inbounds = true, simd = false, threads=false)
     if threads && !Meta.isexpr(ex, :(=)) && !Meta.isexpr(ex, :(:=))
         throw(ArgumentError(
             string("Threaded @vielsum can only assign with = or := right now. ",
-                   "To use ",ex.head," try @einsum instead.")))
+                   "To use ", ex.head, " try @einsum instead.")))
         # could allow :(+=) by simply then removing $lhs = zero($T) line
     end
 
-    if threads && length(lhs_idx)==0
-        throw(ArgumentError(
-            string("Threaded @vielsum needs can't assign to a scalar LHS. ",
-                   "Try @einsum instead.")))
+    if threads && length(lhs_idx) == 0
         # this won't actually cause problems, but won't use threads
+        throw(ArgumentError(
+            string("Threaded @vielsum can't assign to a scalar LHS. ",
+                   "Try @einsum instead.")))
     end
 
     # Copy equation, ex is the Expr we'll build up and return.
@@ -213,11 +219,11 @@ function nest_loops(ex::Expr, idx::Vector{Symbol}, dim::Vector{Expr}, simd::Bool
 
     # Add @simd to the innermost loop, if required
     # and @threads to the outermost loop
-    ex = nest_loop(ex, idx[1], dim[1], simd, threads && 1==length(idx))
+    ex = nest_loop(ex, idx[1], dim[1], simd, threads && length(idx) == 1)
 
     # Add remaining for loops
     for j = 2:length(idx)
-        ex = nest_loop(ex, idx[j], dim[j], false, threads && j==length(idx))
+        ex = nest_loop(ex, idx[j], dim[j], false, threads && length(idx) == j)
     end
 
     return ex
@@ -229,9 +235,9 @@ function nest_loop(ex::Expr, ix::Symbol, dim::Expr, simd::Bool, threads::Bool)
              end)
 
     if threads
-      loop = :(Threads.@threads $loop)
+        loop = :(Threads.@threads $loop)
     elseif simd
-      loop = :(@simd $loop)
+        loop = :(@simd $loop)
     end
 
     return quote
@@ -346,6 +352,7 @@ end
 
 function unquote_offsets!(ex::Expr, inside_ref = false)
     inside_ref |= Meta.isexpr(ex, :ref)
+    
     for i in eachindex(ex.args)
         if ex.args[i] isa Expr
             if Meta.isexpr(ex.args[i], :quote) && inside_ref # never seems to get here
