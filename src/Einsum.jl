@@ -214,6 +214,22 @@ function _einsum(ex::Expr, inbounds = true, simd = false, threads = false)
 end
 
 
+"""
+    nest_loops(expr, idx, dim, simd, threads) -> Expr
+
+Construct a nested loop around `expr`, using indices `idx` in ranges `dim`.
+
+# Example
+```julia-repl
+julia> nest_loops(:(A[i] = B[i]), [:i], [:(size(A, 1))], true, false)
+quote
+    local i
+    @simd for i = 1:size(A, 1)
+        A[i] = B[i]
+    end
+end
+```
+"""
 function nest_loops(ex::Expr, idx::Vector{Symbol}, dim::Vector{Expr}, simd::Bool, threads::Bool)
     isempty(idx) && return ex
 
@@ -247,6 +263,18 @@ function nest_loop(ex::Expr, ix::Symbol, dim::Expr, simd::Bool, threads::Bool)
 end
 
 
+"""
+    extractindices(expr) -> (indices, arrays, dims)
+
+Compute lists of all `indices` and `dims` of an expression of `arrays`.  Everything is ordered by
+first occurence in `expr`.
+
+# Examples
+```julia-repl
+julia> extractindices(:(f(A[i,j,i]) + C[j]))
+(Symbol[:i, :j, :i, :j], Symbol[:A, :C], Expr[:(size(A, 1)), :(size(A, 2)), :(size(A, 3)), :(size(C, 1))])
+```
+"""
 extractindices(ex) = extractindices!(ex, Symbol[], Symbol[], Expr[])
 
 function extractindices!(ex::Symbol,
