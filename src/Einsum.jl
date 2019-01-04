@@ -216,7 +216,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
 end
 
 function check_index_occurrence(lhs_indices, rhs_indices)
-    if lhs_indices ⊈ rhs_indices
+    if !issubset(lhs_indices, rhs_indices)
         missing_indices = setdiff(lhs_indices, rhs_indices)
 
         if length(missing_indices) == 1
