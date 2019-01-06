@@ -207,7 +207,12 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
         $type_definition
         $output_definition
         $(dimension_checks...)
-        $loop_expr
+        
+        # remove let when we drop 0.6 support -- see #31
+        let $([lhs_indices; rhs_indices]...)
+            $loop_expr
+        end
+
         $(lhs_arrays[1])
     end
 
