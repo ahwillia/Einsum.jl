@@ -150,8 +150,8 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
     end
 
     
-    # Copy equation, expr is the Expr we'll build up and return.
-    output_expr = unquote_offsets!(copy(expr))
+    # copy the index expression to modify it; loop_expr is the Expr we'll build loops around
+    loop_expr = unquote_offsets!(copy(expr))
 
     # Nest loops to iterate over the destination variables
     if length(rhs_indices) > 0
@@ -162,54 +162,52 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
 
             # Innermost expression has form s += rhs
             @gensym s
-            output_expr.args[1] = s
-            output_expr.head = :(+=)
+            loop_expr.args[1] = s
+            loop_expr.head = :(+=)
 
             # Nest loops to iterate over the summed out variables
-            output_expr = nest_loops(output_expr, rhs_indices, rhs_axis_exprs, simd, false)
+            loop_expr = nest_loops(loop_expr, rhs_indices, rhs_axis_exprs, simd, false)
 
             # Prepend with s = 0, and append with assignment
             # to the left hand side of the equation.
             lhs_assignment = Expr(assignment_op, lhs, s)
 
-            output_expr = quote
+            loop_expr = quote
                 local $s = zero($T)
-                $output_expr
+                $loop_expr
                 $lhs_assignment
             end
 
         else # we are threading, and thus should write directly to lhs array
 
-            output_expr.args[1] = lhs
-            output_expr.head = :(+=)
+            loop_expr.args[1] = lhs
+            loop_expr.head = :(+=)
 
-            output_expr = nest_loops(output_expr, rhs_indices, rhs_axis_exprs, simd, false)
+            loop_expr = nest_loops(loop_expr, rhs_indices, rhs_axis_exprs, simd, false)
 
-            output_expr = quote
+            loop_expr = quote
                 $lhs = zero($T)
-                $output_expr
+                $loop_expr
             end
         end
 
         # Now loop over indices appearing on lhs, if any
-        output_expr = nest_loops(output_expr, lhs_indices, lhs_axis_exprs, false, threads)
+        loop_expr = nest_loops(loop_expr, lhs_indices, lhs_axis_exprs, false, threads)
     else
         # We do not sum over any indices, only loop over lhs
-        output_expr.head = assignment_op
-        output_expr = nest_loops(output_expr, lhs_indices, lhs_axis_exprs, simd, threads)
+        loop_expr.head = assignment_op
+        loop_expr = nest_loops(loop_expr, lhs_indices, lhs_axis_exprs, simd, threads)
     end
 
     if inbounds
-        output_expr = :(@inbounds $output_expr)
+        loop_expr = :(@inbounds $loop_expr)
     end
 
     full_expression = quote
         $type_definition
         $output_definition
         $(dimension_checks...)
-        let
-            $output_expr
-        end
+        $loop_expr
         $(lhs_arrays[1])
     end
 
@@ -276,14 +274,11 @@ function nest_loop(expr::Expr, index_name::Symbol, axis_expression::Expr,
              end)
 
     if threads
-        loop = :(Threads.@threads $loop)
+        return :(Threads.@threads $loop)
     elseif simd
-        loop = :(@simd $loop)
-    end
-
-    return quote
-        local $index_name
-        $loop
+        return :(@simd $loop)
+    else
+        return loop
     end
 end
 
