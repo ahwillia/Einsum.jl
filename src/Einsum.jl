@@ -328,8 +328,8 @@ function extractindices!(expr::Expr,
 
         # expr.args[2:end] are indices (e.g. [i,j,k])
         for (dimension, index_expr) in enumerate(expr.args[2:end])
-            extractindex!(index_expr, array_name, dimension,
-                          array_names, index_names, axis_expressions)
+            pushindex!(index_expr, array_name, dimension,
+                       array_names, index_names, axis_expressions)
         end
     elseif Meta.isexpr(expr, :call)
         # e.g. 2*A[i,j], transpose(A[i,j]), or A[i] + B[j], so
@@ -345,26 +345,19 @@ function extractindices!(expr::Expr,
     return return array_names, index_names, axis_expressions
 end
 
-function extractindex!(expr::Symbol, array_name::Symbol, dimension::Int,
-                       array_names::Vector{Symbol},
-                       index_names::Vector{Symbol},
-                       axis_expressions::Vector{Expr})
+function pushindex!(expr::Symbol, array_name::Symbol, dimension::Int,
+                    array_names, index_names, axis_expressions)
     push!(index_names, expr)
     push!(axis_expressions, :(size($array_name, $dimension)))
-    return array_names, index_names, axis_expressions
 end
 
-function extractindex!(expr::Number, array_name::Symbol, dimension::Int,
-                       array_names::Vector{Symbol},
-                       index_names::Vector{Symbol},
-                       axis_expressions::Vector{Expr})
-    return array_names, index_names, axis_expressions
+function pushindex!(expr::Number, array_name::Symbol, dimension::Int,
+                    array_names, index_names, axis_expressions)
+    return nothing
 end
 
-function extractindex!(expr::Expr, array_name::Symbol, dimension::Int,
-                       array_names::Vector{Symbol},
-                       index_names::Vector{Symbol},
-                       axis_expressions::Vector{Expr})
+function pushindex!(expr::Expr, array_name::Symbol, dimension::Int,
+                    array_names, index_names, axis_expressions)
     # e.g. A[i+:offset] or A[i+5]
     #    expr is an Expr in this case
     #    We restrict it to be a Symbol (e.g. :i) followed by either
@@ -403,12 +396,10 @@ function extractindex!(expr::Expr, array_name::Symbol, dimension::Int,
                                        "limited to `+` and `-`")))
         end
     elseif Meta.isexpr(expr, :quote)
-        # nothing
+        return nothing
     else
         throw(ArgumentError("Invalid index expression: `$(expr)`"))
     end
-
-    return array_names, index_names, axis_expressions
 end
 
 
