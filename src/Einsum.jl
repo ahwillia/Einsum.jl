@@ -149,10 +149,11 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
             "Try @einsum instead.")))
     end
 
+    
     # Copy equation, expr is the Expr we'll build up and return.
-    unquote_offsets!(expr)
+    output_expr = unquote_offsets!(copy(expr))
 
-    # Next loops to iterate over the destination variables
+    # Nest loops to iterate over the destination variables
     if length(rhs_indices) > 0
         # There are indices on rhs that do not appear in lhs.
         # We sum over these variables.
@@ -161,45 +162,45 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
 
             # Innermost expression has form s += rhs
             @gensym s
-            expr.args[1] = s
-            expr.head = :(+=)
+            output_expr.args[1] = s
+            output_expr.head = :(+=)
 
             # Nest loops to iterate over the summed out variables
-            expr = nest_loops(expr, rhs_indices, rhs_axis_exprs, simd, false)
+            output_expr = nest_loops(output_expr, rhs_indices, rhs_axis_exprs, simd, false)
 
             # Prepend with s = 0, and append with assignment
             # to the left hand side of the equation.
             lhs_assignment = Expr(assignment_op, lhs, s)
 
-            expr = quote
+            output_expr = quote
                 local $s = zero($T)
-                $expr
+                $output_expr
                 $lhs_assignment
             end
 
         else # we are threading, and thus should write directly to lhs array
 
-            expr.args[1] = lhs
-            expr.head = :(+=)
+            output_expr.args[1] = lhs
+            output_expr.head = :(+=)
 
-            expr = nest_loops(expr, rhs_indices, rhs_axis_exprs, simd, false)
+            output_expr = nest_loops(output_expr, rhs_indices, rhs_axis_exprs, simd, false)
 
-            expr = quote
+            output_expr = quote
                 $lhs = zero($T)
-                $expr
+                $output_expr
             end
         end
 
         # Now loop over indices appearing on lhs, if any
-        expr = nest_loops(expr, lhs_indices, lhs_axis_exprs, false, threads)
+        output_expr = nest_loops(output_expr, lhs_indices, lhs_axis_exprs, false, threads)
     else
         # We do not sum over any indices, only loop over lhs
-        expr.head = assignment_op
-        expr = nest_loops(expr, lhs_indices, lhs_axis_exprs, simd, threads)
+        output_expr.head = assignment_op
+        output_expr = nest_loops(output_expr, lhs_indices, lhs_axis_exprs, simd, threads)
     end
 
     if inbounds
-        expr = :(@inbounds $expr)
+        output_expr = :(@inbounds $output_expr)
     end
 
     full_expression = quote
@@ -207,7 +208,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
         $output_definition
         $(dimension_checks...)
         let
-            $expr
+            $output_expr
         end
         $(lhs_arrays[1])
     end
@@ -317,7 +318,6 @@ function extractindices!(expr::Number,
     return array_names, index_names, axis_expressions
 end
 
-
 function extractindices!(expr::Expr,
                          array_names::Vector{Symbol},
                          index_names::Vector{Symbol},
@@ -344,6 +344,7 @@ function extractindices!(expr::Expr,
 
     return return array_names, index_names, axis_expressions
 end
+
 
 function pushindex!(expr::Symbol, array_name::Symbol, dimension::Int,
                     array_names, index_names, axis_expressions)
@@ -419,6 +420,5 @@ function unquote_offsets!(expr::Expr, inside_ref = false)
     return expr
 end
 
-# end module
-############
-end
+
+end # module
