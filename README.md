@@ -107,7 +107,7 @@ end
 
 ### Rules for indexing variables
 
-* Indices that show up on the left-hand-side but not the right-hand-side are summed over
+* Indices that show up on the right-hand-side but not the left-hand-side are summed over
 * Arrays which share an index must be of the same size, in those dimensions
 
 `@einsum` iterates over the extent of the right-hand-side indices. For example, the following code
@@ -118,12 +118,13 @@ allocates an array `A` that is the same size as `B` and copies its data into `A`
 ```
 
 If an index appears on the right-hand-side, but does not appear on the left-hand-side, then this
-variable is summed over. For example, the following code allocates `A` to be `size(B,1)` and sums
+variable is summed over. For example, the following code allocates `A` to be `size(B, 1)` and sums
 over the rows of `B`:
 
 ```julia
-@einsum A[i] := B[i, j]  # same as A = reducedims(sum(B, dims=2), dims=2)
+@einsum A[i] := B[i, j]  # same as A = dropdims(sum(B, dims=2), dims=2)
 ```
+
 If an index variable appears multiple times on the right-hand-side, then it is asserted that the
 sizes of these dimensions match. For example,
 
@@ -134,9 +135,10 @@ sizes of these dimensions match. For example,
 will check that the second dimension of `B` matches the first dimension of `C` in length. In
 particular it is equivalent to the following code:
 
-```
+```julia
 A = zeros(size(B, 1))
 @assert size(B, 2) == size(C, 1)
+
 for i = 1:size(B, 1), j = 1:size(B, 2)
     A[i] += B[i, j] * C[j]
 end
@@ -147,6 +149,7 @@ So an error will be thrown if the specified dimensions of `B` and `C` don't matc
 #### Offset indexing 
 
 `@einsum` also allows offsets on the right-hand-side, the range over which `i` is summed is then restricted:
+
 ```julia
 @einsum A[i] = B[i - 5]
 ```
