@@ -1,0 +1,11 @@
+name = "Einsum"
+uuid = "18756830-0e95-11e9-2f88-63828ca5be2a"
+license = "MIT"
+authors = ["Alex Williams <alex.h.willia@gmail.com>", "Philipp Gabler <phipsgabler@users.noreply.github.com>"]
+version = "0.3.0"
+
+[deps]
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
+
+[compat]
+julia = "0.6, 0.7, 1.0"
