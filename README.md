@@ -1,9 +1,9 @@
 # Einsum.jl
 
-| **PackageEvaluator** | **Package Build** | **Package Status** |
-|:--------------------:|:---------:|:------------------:|
-| [![Einsum](http://pkg.julialang.org/badges/Einsum_0.7.svg)](http://pkg.julialang.org/?pkg=Einsum) | [![Build Status](https://travis-ci.org/ahwillia/Einsum.jl.svg?branch=master)](https://travis-ci.org/ahwillia/Einsum.jl) | [![License](http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](LICENSE.md) |
-[![Einsum](http://pkg.julialang.org/badges/Einsum_0.6.svg)](http://pkg.julialang.org/?pkg=Einsum) | | [![Project Status: Inactive - The project has reached a stable, usable state but is no longer being actively developed; support/maintenance will be provided as time allows.](http://www.repostatus.org/badges/latest/inactive.svg)](http://www.repostatus.org/#inactive) - help wanted! |
+| **Package Build** | **Package Status** |
+|:---------:|:------------------:|
+| [![Build Status](https://travis-ci.org/ahwillia/Einsum.jl.svg?branch=master)](https://travis-ci.org/ahwillia/Einsum.jl) | [![License](http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](LICENSE.md) |
+[![Einsum](http://pkg.julialang.org/badges/Einsum_0.6.svg)](http://pkg.julialang.org/?pkg=Einsum) | [![Project Status: Inactive - The project has reached a stable, usable state but is no longer being actively developed; support/maintenance will be provided as time allows.](http://www.repostatus.org/badges/latest/inactive.svg)](http://www.repostatus.org/#inactive) - help wanted! |
 
 
 This package exports a single macro `@einsum`, which implements *similar* notation to the [Einstein
@@ -27,24 +27,23 @@ To install: `Pkg.add("Einsum")`, or else `pkg> add Einsum` after pressing `]` on
 If the destination array is preallocated, then use `=`:
 
 ```julia
-A = ones(5, 6, 7) # preallocate space yourself; will be overwritten
+A = ones(5, 6, 7) # preallocated space
 X = randn(5, 2)
 Y = randn(6, 2)
 Z = randn(7, 2)
 
-# creates new array A with appropriate dimensions
+# Store the result in A, overwriting as necessary:
 @einsum A[i, j, k] = X[i, r] * Y[j, r] * Z[k, r]
 ```
 
-If destination is not preallocated, then use `:=` to automatically create a new array `B` with
-appropriate dimensions:
+If destination is not preallocated, then use `:=` to automatically create a new array for the result:
 
 ```julia
 X = randn(5, 2)
 Y = randn(6, 2)
 Z = randn(7, 2)
 
-# Store the result in A, overwriting as necessary
+# Create new array B with appropriate dimensions:
 @einsum B[i, j, k] := X[i, r] * Y[j, r] * Z[k, r]
 ```
 
@@ -109,7 +108,7 @@ end
 ### Rules for indexing variables
 
 * Indices that show up on the left-hand-side but not the right-hand-side are summed over
-* Indices that appear over multiple dimensions must match
+* Arrays which share an index must be of the same size, in those dimensions
 
 `@einsum` iterates over the extent of the right-hand-side indices. For example, the following code
 allocates an array `A` that is the same size as `B` and copies its data into `A`:
@@ -123,7 +122,7 @@ variable is summed over. For example, the following code allocates `A` to be `si
 over the rows of `B`:
 
 ```julia
-@einsum A[i] := B[i, j]  # same as A = sum(B, 2)
+@einsum A[i] := B[i, j]  # same as A = reducedims(sum(B, dims=2), dims=2)
 ```
 If an index variable appears multiple times on the right-hand-side, then it is asserted that the
 sizes of these dimensions match. For example,
@@ -145,13 +144,12 @@ end
 
 So an error will be thrown if the specified dimensions of `B` and `C` don't match.
 
-#### Advanced indexing 
+#### Offset indexing 
 
-`@einsum` also allows offsets on the right-hand-side:
+`@einsum` also allows offsets on the right-hand-side, the range over which `i` is summed is then restricted:
 ```julia
 @einsum A[i] = B[i - 5]
 ```
-
 
 ### `@vielsum`
 
