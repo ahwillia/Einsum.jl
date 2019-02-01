@@ -1,7 +1,9 @@
 name = "Einsum"
 uuid = "b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
 license = "MIT"
-authors = ["Alex Williams <alex.h.willia@gmail.com>", "Philipp Gabler <phipsgabler@users.noreply.github.com>"]
+authors = ["Alex Williams <alex.h.willia@gmail.com>", 
+           "Michael Abbott <mcabbott@users.noreply.github.com>",
+           "Philipp Gabler <phipsgabler@users.noreply.github.com>"]
 version = "0.4.1"
 
 [deps]
