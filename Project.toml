@@ -1,11 +1,11 @@
 name = "Einsum"
-uuid = "18756830-0e95-11e9-2f88-63828ca5be2a"
+uuid = ""b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
 license = "MIT"
 authors = ["Alex Williams <alex.h.willia@gmail.com>", "Philipp Gabler <phipsgabler@users.noreply.github.com>"]
-version = "0.3.0"
+version = "0.4.1"
 
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 
 [compat]
-julia = "0.6, 0.7, 1.0"
+julia = "0.6, 0.7, 1.0, 1.1"
