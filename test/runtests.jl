@@ -299,3 +299,10 @@ let
     @test isapprox(A1, A3)
     @test isapprox(A2, A3)
 end
+
+# Test index comparison
+let
+    A = rand(10, 10)
+    @einsum B[i,j] := (i == j) * A[i,j]
+    @test B == A .* eye(size(A, 1))
+end

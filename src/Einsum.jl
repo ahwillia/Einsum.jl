@@ -338,6 +338,8 @@ function extractindices!(expr::Expr,
         for arg in expr.args[2:end]
             extractindices!(arg, array_names, index_names, axis_expressions)
         end
+    elseif ex.head == :comparison
+        # pass as is to allow expressions like `@einsum B[i, j] := (i == j) * A[i, j]`
     else
         throw(ArgumentError("Invalid expression head: `:$(expr.head)`"))
     end
