@@ -1,27 +1,23 @@
-using Compat
-using Compat.Test # Base.Test on 0.6, and Test on 0.7
-using Compat.LinearAlgebra # dot
+using Test
+using LinearAlgebra # dot
 
 using Einsum
 
-## Test that vars in Main aren't overwritten by einsum
-let
+@testset "Test that vars in Main aren't overwritten by einsum" begin
     i = -1
     y = randn(10)
     @einsum x[i] := y[i]
     @test i == -1
 end
 
-## Test that B is overwritten by := operator
-let
+@testset "Test that B is overwritten by := operator" begin
     B = randn(10, 10)
     A = randn(5, 10)
     @einsum B[i, j] := A[i, j] # this should run without a problem
     @test size(B) == size(A)
 end
 
-## CP decomposition test case ##
-let
+@testset "CP decomposition test case" begin
 
     # preallocated test case
     A = zeros(5, 6, 7)
@@ -56,9 +52,7 @@ let
 
 end
 
-# Interesting test case, can throw an error that
-# local vars are declared twice.
-let
+@testset "Interesting test case, can throw an error that local vars are declared twice." begin
     A = zeros(5, 6, 7)
     X = randn(5, 2)
     Y = randn(6, 2)
@@ -70,32 +64,27 @@ let
     end
 end
 
-# From #21: local `T` does not interfer with internal T
-let
+@testset "From #21: local `T` does not interfer with internal T" begin
     function test(x::Vector{T}, y::Vector{T}) where T
         @einsum z := x[i] * y[i]
         return z
     end
     @test_nowarn test(rand(3), rand(3))
 end
-# From #20: local `s` does not interfere with internal s
-let
+
+@testset "From #20: local `s` does not interfere with internal s" begin
     x = rand(2, 3)
     @test_nowarn @einsum y[i] := x[i, s]
 end
 
-# At one point this threw an error because the lhs
-# had no indices/arguments
-let
+@testset "At one point this threw an error because the lhs had no indices/arguments" begin
     x = randn(10)
     y = randn(10)
     @einsum k := x[i] * y[i]
     @test isapprox(k, dot(x, y))
 end
 
-# Elementwise multiplication (this should create nested loops with no
-# no summation.)
-let
+@testset "Elementwise multiplication (this should create nested loops with no no summation.)" begin
     x = randn(10)
     y = randn(10)
     @einsum k[i] := x[i] * y[i]
@@ -106,8 +95,7 @@ let
     @test isapprox(k3, x .* y)
 end
 
-# Transpose a block matrix
-let
+@testset "Transpose a block matrix" begin
     z = [rand(2, 2) for i = 1:2, j = 1:2]
     @einsum t[i, j] := transpose(z[j, i])
     @test isapprox(z[1, 1],  t[1, 1]')
@@ -116,25 +104,31 @@ let
     @test isapprox(z[2, 1],  t[1, 2]')
 end
 
-# Mapping functions
-let
+@testset "Mapping functions" begin
     A = randn(10, 10)
     @einsum B[i, j] := exp(A[i, j])
     @test isapprox(exp.(A), B)
 end
 
-# Example from numpy
-let
+@testset "Example from numpy" begin
     A = reshape(collect(1:25), 5, 5)
     @einsum B[i] := A[i, i]
     @test all(B .== [1, 7, 13, 19, 25])
+
+    @vielsum C[i] := A[i, i]
+    @test all(C .== [1, 7, 13, 19, 25])
+
 end
 
-# TODO: consider adding support for this:
-# @einsum A[i, j] = A[i,j] + 50
+@testset "Adding a scalar, to-done" begin
 
-## Test in-place operations ##
-let
+    A = collect(reshape(1:12, 3,4))
+    @einsum A[i, j] = A[i,j] + 50
+    @test A == collect(50 .+ reshape(1:12, 3,4))
+
+end
+
+@testset "Test in-place operations" begin
     A = randn(5, 6, 7)
     B = randn(5, 6, 7)
     A1 = copy(A)
@@ -196,8 +190,7 @@ let
     @test isapprox(k, k0 * dot(x, y))
 end
 
-# Test offsets
-let
+@testset "Test offsets" begin
     X = randn(10)
 
     # without preallocation
@@ -212,8 +205,7 @@ let
     @test all(B[1:5] .== X[6:end])
 end
 
-# Test symbolic offsets
-let
+@testset "Test symbolic offsets" begin
     offset = 5
     X = randn(10)
 
@@ -229,8 +221,7 @@ let
     # @test all(B[1:5] .== X[6:end])
 end
 
-# Test adding/subtracting constants
-let
+@testset "Test adding/subtracting constants" begin
     k = 5
     X = randn(10)
 
@@ -248,8 +239,7 @@ let
     @test isapprox(D, X .- k)
 end
 
-# Test multiplying/dividing constants
-let
+@testset "Test multiplying/dividing constants" begin
     k = 5
     X = randn(10)
 
@@ -267,8 +257,7 @@ let
     @test isapprox(D, X ./ k)
 end
 
-# Test indexing with a constant
-let
+@testset "Test indexing with a constant" begin
     A = randn(10, 2)
     j = 2
     # @einsum B[i] := A[i, :j] # error on 1.0
@@ -283,8 +272,7 @@ let
     # @test isapprox(D[:, j], A[:, j])
 end
 
-# Better type inference on allocating arrays
-let
+@testset "Better type inference on allocating arrays" begin
     B1 = ones(Int, 5)
     B2 = ones(Float32, 5)
     B3 = ones(5)
