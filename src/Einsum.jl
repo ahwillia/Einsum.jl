@@ -1,12 +1,6 @@
-isdefined(Base, :__precompile__) && __precompile__()
-
 module Einsum
 
-
-using Compat # for Array{}(undef,...)
-
 export @einsum, @einsimd, @vielsum, @vielsimd
-
 
 macro einsum(ex)
     _einsum(ex) # true, false, false
@@ -42,7 +36,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
 
     # Get info on the right-hand side
     rhs_arrays, rhs_indices, rhs_axis_exprs = extractindices(rhs)
-    
+
     check_index_occurrence(lhs_indices, rhs_indices)
 
     # remove duplicate indices on left-hand and right-hand side
@@ -54,7 +48,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
     for i in reverse(eachindex(rhs_indices))
         duplicated = false
         di = rhs_axis_exprs[i]
-        
+
         for j = 1:(i - 1)
             if rhs_indices[j] == rhs_indices[i]
                 # found a duplicate
@@ -65,7 +59,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
                 push!(dimension_checks, :(@assert $dj == $di))
             end
         end
-        
+
         for j = eachindex(lhs_indices)
             if lhs_indices[j] == rhs_indices[i]
                 dj = lhs_axis_exprs[j]
@@ -80,7 +74,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
                 duplicated = true
             end
         end
-        
+
         if duplicated
             deleteat!(rhs_indices, i)
             deleteat!(rhs_axis_exprs, i)
@@ -104,7 +98,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
                 push!(dimension_checks, :(@assert $dj == $di))
             end
         end
-        
+
         if duplicated
             deleteat!(lhs_indices, i)
             deleteat!(lhs_axis_exprs, i)
@@ -149,7 +143,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
             "Try @einsum instead.")))
     end
 
-    
+
     # copy the index expression to modify it; loop_expr is the Expr we'll build loops around
     loop_expr = unquote_offsets!(copy(expr))
 
@@ -207,12 +201,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
         $type_definition
         $output_definition
         $(dimension_checks...)
-        
-        # remove let when we drop 0.6 support -- see #31
-        let $([lhs_indices; rhs_indices]...)
-            $loop_expr
-        end
-
+        $loop_expr
         $(lhs_arrays[1])
     end
 
@@ -291,8 +280,8 @@ end
 """
     extractindices(expr) -> (array_names, index_names, axis_expressions)
 
-Compute all `index_names` and respective axis calculations of an expression 
-involving the arrays with `array_names`. Everything is ordered by first 
+Compute all `index_names` and respective axis calculations of an expression
+involving the arrays with `array_names`. Everything is ordered by first
 occurence in `expr`.
 
 # Examples
@@ -406,7 +395,7 @@ end
 
 function unquote_offsets!(expr::Expr, inside_ref = false)
     inside_ref |= Meta.isexpr(expr, :ref)
-    
+
     for i in eachindex(expr.args)
         if expr.args[i] isa Expr
             if Meta.isexpr(expr.args[i], :quote) && inside_ref # never seems to get here
