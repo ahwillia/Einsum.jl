@@ -233,5 +233,5 @@ to express broadcasting expressions, as well as sums, products and other reducti
 
 * [ArrayMeta.jl](https://github.com/shashi/ArrayMeta.jl) aims to produce cache-friendly operations for more general loops, but only supports Julia 0.6.
 
-* [OMEinsum.jl](https://nuget.pkg.github.com/under-Peter/OMEinsum.jl) is work in progress on a 
+* [OMEinsum.jl](https://github.com/under-Peter/OMEinsum.jl) is work in progress on a 
 Google Summer of Code project, to produce efficient differentiable tensor networks.
