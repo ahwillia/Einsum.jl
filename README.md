@@ -3,16 +3,16 @@
 | **Package Build** | **Package Status** |
 |:---------:|:------------------:|
 | [![Build Status](https://travis-ci.org/ahwillia/Einsum.jl.svg?branch=master)](https://travis-ci.org/ahwillia/Einsum.jl) | [![License](http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](LICENSE.md) |
-[![Einsum](http://pkg.julialang.org/badges/Einsum_0.6.svg)](http://pkg.julialang.org/?pkg=Einsum) | [![Project Status: Inactive - The project has reached a stable, usable state but is no longer being actively developed; support/maintenance will be provided as time allows.](http://www.repostatus.org/badges/latest/inactive.svg)](http://www.repostatus.org/#inactive) - help wanted! |
+[![Documentation](https://camo.githubusercontent.com/f7b92a177c912c1cc007fc9b40f17ff3ee3bb414/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f646f63732d737461626c652d626c75652e737667)](https://pkg.julialang.org/docs/Einsum/ifPEh/0.4.1/) | [![Project Status: Inactive - The project has reached a stable, usable state but is no longer being actively developed; support/maintenance will be provided as time allows.](http://www.repostatus.org/badges/latest/inactive.svg)](http://www.repostatus.org/#inactive) - help wanted! |
 
 
 This package exports a single macro `@einsum`, which implements *similar* notation to the [Einstein
 summation convention](https://en.wikipedia.org/wiki/Einstein_notation) to flexibly specify
-operations on Julia `Array`s, similar to numpy's
-[`einsum`](http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.einsum.html) function
-(but more flexible!).
+operations on Julia `Array`s. This is similar to numpy's
+[`einsum`](http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.einsum.html) function,
+but more flexible!
 
-For example, basic matrix multiplication can be implemented as:
+For example, basic matrix multiplication can be implemented as follows, with an implicit sum over `k`:
 
 ```julia
 @einsum A[i, j] := B[i, k] * C[k, j]
@@ -36,13 +36,9 @@ Z = randn(7, 2)
 @einsum A[i, j, k] = X[i, r] * Y[j, r] * Z[k, r]
 ```
 
-If destination is not preallocated, then use `:=` to automatically create a new array for the result:
+If destination is not preallocated, then use `:=`:
 
 ```julia
-X = randn(5, 2)
-Y = randn(6, 2)
-Z = randn(7, 2)
-
 # Create new array B with appropriate dimensions:
 @einsum B[i, j, k] := X[i, r] * Y[j, r] * Z[k, r]
 ```
@@ -217,27 +213,25 @@ end
 
 This will work as long the function calls are outside the array names. Again, you can use [`@macroexpand`](https://docs.julialang.org/en/stable/stdlib/base/#Base.@macroexpand) to see the exact code that is generated.
 
-The output need not be an array. But note that on Julia 0.7 and 1.0, the rules for evaluating in global scope (for example at the REPL prompt) are a little different -- see [this package](https://github.com/stevengj/SoftGlobalScope.jl) for instance (which is loaded in [IJulia](https://github.com/JuliaLang/IJulia.jl) notebooks). To get the same behavior as you would have inside a function, you use a `let` block:  
+The `@einsum` macro can sum over all indices, to produce a scalar, for example:
 
 ```julia
 p = rand(5); p .= p ./ sum(p)
-let
-    global S
-    @einsum S := - p[i] * log(p[i])
-end
+
+@einsum S := - p[i] * log(p[i])
 ```
 
-Or perhaps clearer, explicitly define a function:
+Note that writing `@einsum S[] := - p[i] * log(p[i])` to produce a zero-dimensional array is 
+presently not supported. 
 
-```julia
-m(pq, p, q) = @einsum I := pq[i,j] * log(pq[i,j] / p[i] / q[j])
-
-m(rand(5,10), rand(5), rand(10))
-```
-
-
-### Related Packages:
+## Related Packages
 
 * [TensorOperations.jl](https://github.com/Jutho/TensorOperations.jl) has less flexible syntax (only allowing strict Einstein convention contractions), but can produce much more efficient code.  Instead of generating “naive” loops, it transforms the expressions into optimized contraction functions and takes care to use a good (cache-friendly) order for the looping.
 
-* [ArrayMeta.jl](https://github.com/shashi/ArrayMeta.jl) aims to produce cache-friendly operations for more general loops (but is Julia 0.6 only).
+* [TensorCast.jl](https://github.com/mcabbott/TensorCast.jl) uses a similar similar index notation
+to express broadcasting expressions, as well as sums, products and other reductions of these.
+
+* [ArrayMeta.jl](https://github.com/shashi/ArrayMeta.jl) aims to produce cache-friendly operations for more general loops, but only supports Julia 0.6.
+
+* [OMEinsum.jl](https://nuget.pkg.github.com/under-Peter/OMEinsum.jl) is work in progress on a 
+Google Summer of Code project, to produce efficient differentiable tensor networks.
