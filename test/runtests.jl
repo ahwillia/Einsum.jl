@@ -287,3 +287,15 @@ end
     @test isapprox(A1, A3)
     @test isapprox(A2, A3)
 end
+
+@testset "Scalar output, issue #37" begin
+
+    a = [1 0; 0 1]
+    @einsum b := a[i,i]
+    @einsum c[] := a[i,i]
+
+    @test b == c[] == 2
+    @test b isa Int
+    @test c isa Array{Int,0}
+
+end

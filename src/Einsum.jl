@@ -116,7 +116,7 @@ function _einsum(expr::Expr, inbounds = true, simd = false, threads = false)
 
         type_definition = :(local $T = $rhs_type)
 
-        output_definition = if length(lhs_axis_exprs) > 0
+        output_definition = if !(lhs isa Symbol)
             :($(lhs_arrays[1]) = Array{$T}(undef, $(lhs_axis_exprs...)))
         else
             :($(lhs_arrays[1]) = zero($T))
